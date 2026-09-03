@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.mezahub.audio.AudioCapture
 import com.example.mezahub.data.CryFingerprintRepository
 import com.example.mezahub.data.DetectionHistoryRepository
+import com.example.mezahub.data.SensitivityRepository
 import com.example.mezahub.model.CryOutcome
 import com.example.mezahub.model.ListenStatus
 import kotlinx.coroutines.CancellationException
@@ -36,6 +37,7 @@ class ListenViewModel(application: Application) : AndroidViewModel(application) 
     private var captureJob: Job? = null
 
     init {
+        SensitivityRepository.ensureLoaded(application)
         viewModelScope.launch { CryFingerprintRepository.ensureLoaded(application) }
     }
 

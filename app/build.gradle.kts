@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.mezahub"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
-        versionName = "2.1"
+        versionCode = 8
+        versionName = "2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

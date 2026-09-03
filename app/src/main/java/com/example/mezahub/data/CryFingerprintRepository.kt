@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.IOException
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 data class CryMatch(val entry: PokemonCryEntry, val confidencePercent: Int)
 
@@ -20,7 +21,11 @@ private data class IndexEntry(val tagId: String, val frameIndex: Int)
  */
 object CryFingerprintRepository {
     private const val ASSET_DIR = "cries"
-    private const val MIN_MATCH_VOTES = 8
+
+    // Vote-count threshold to count as a match, scaled by the user's sensitivity setting:
+    // strictest (sensitivity 0) needs a much cleaner match than most lenient (sensitivity 1).
+    private const val MIN_VOTES_STRICT = 16
+    private const val MIN_VOTES_LENIENT = 4
 
     private val _loadedCount = MutableStateFlow(0)
     val loadedCount: StateFlow<Int> = _loadedCount.asStateFlow()
@@ -91,10 +96,11 @@ object CryFingerprintRepository {
             }
         }
 
+        val minMatchVotes = currentMinMatchVotes()
         val maxVotes = votes.values.maxOrNull() ?: return emptyList()
-        if (maxVotes < MIN_MATCH_VOTES) return emptyList()
+        if (maxVotes < minMatchVotes) return emptyList()
 
-        val tieThreshold = (maxVotes * 0.9).toInt().coerceAtLeast(MIN_MATCH_VOTES)
+        val tieThreshold = (maxVotes * 0.9).toInt().coerceAtLeast(minMatchVotes)
         val bestVotesByTag = mutableMapOf<String, Int>()
         for ((key, voteCount) in votes) {
             if (voteCount < tieThreshold) continue
@@ -109,5 +115,10 @@ object CryFingerprintRepository {
             val confidence = (voteCount * 100 / denominator).coerceIn(1, 99)
             CryMatch(entry, confidence)
         }.sortedByDescending { it.confidencePercent }
+    }
+
+    private fun currentMinMatchVotes(): Int {
+        val sensitivity = SensitivityRepository.sensitivity.value.coerceIn(0f, 1f)
+        return (MIN_VOTES_STRICT - sensitivity * (MIN_VOTES_STRICT - MIN_VOTES_LENIENT)).roundToInt()
     }
 }
