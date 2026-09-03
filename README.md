@@ -2,7 +2,7 @@
 
 MezaHub is an Android app that listens for Pokémon cries during **Mezastar** bonus-catch rounds
 at the arcade and tells you which Pokémon (and rarity tier) you're about to catch — before you
-commit to the round.
+commit to catch the pokemon and wasting a token.
 
 > **This is a fan-made project and is *NOT* affiliated with, endorsed by, or associated with
 > Nintendo, The Pokémon Company, Game Freak, or the operators of Mezastar/Pokémon Mezastar in
