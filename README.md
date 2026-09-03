@@ -20,8 +20,8 @@ The app has three screens:
 
 - **Listen** — tap the Pokéball button to record a few seconds of audio and identify the cry.
 - **History** — every real detection made this session, persisted locally, newest first.
-- **Settings** — reference-database status/rebuild, a sensitivity slider (UI-only for now), and
-  app/version info.
+- **Settings** — reference-database status/rebuild, a working sensitivity slider (with a
+  built-in calibration guide), a confidence-percentage display toggle, and app/version info.
 
 ## How the Listen flow works
 
@@ -92,18 +92,37 @@ self-contained, Shazam-style **acoustic fingerprinting** pipeline written from s
 7. **Matching** — the live clip is fingerprinted the same way, then every one of its hashes is
    looked up in the index. Each (candidate tag ID, time offset) pair gets a vote; a real match
    produces a sharp spike of votes at one consistent offset (because the whole clip aligns),
-   while noise produces scattered, low votes. The top vote count must clear
-   `MIN_MATCH_VOTES = 8` to count as a match at all. Any tag within 90% of the top vote count is
-   treated as tied and surfaced as an additional possible outcome (this is what makes the
-   duplicate-cry handling above work).
+   while noise produces scattered, low votes. The top vote count must clear a minimum threshold
+   to count as a match at all — see **Sensitivity** below, since this threshold is what the
+   in-app slider actually controls. Any tag within 90% of the top vote count is treated as tied
+   and surfaced as an additional possible outcome (this is what makes the duplicate-cry handling
+   above work).
+
+### Sensitivity (in-app, no code changes needed)
+
+Unlike the other knobs below, matching strictness is a real Settings feature, not a
+code-level constant: the **Sensitivity** slider on the Settings screen linearly scales the
+minimum-vote threshold from `MIN_VOTES_STRICT = 16` (slider at 0%, hardest to fool) down to
+`MIN_VOTES_LENIENT = 4` (slider at 100%, catches faint/noisy cries more readily) — see
+`CryFingerprintRepository.currentMinMatchVotes()`. The value is shared instantly between the
+Listen and Settings screens (`data/SensitivityRepository.kt`) and persisted via
+`SharedPreferences`, so it survives app restarts and takes effect on the very next capture with
+no rebuild needed. A **?** icon next to the slider opens an in-app guide explaining what each
+end of the range trades off and what to try if you're seeing too many misses or misidentifications.
+
+A companion **Show match confidence** toggle (also in Settings, `data/AppSettingsRepository.kt`)
+controls whether the match confidence percentage is shown alongside results in the Result card
+and History — off by default, since accurate matches make the number mostly decorative, but
+available for anyone who wants to see it (e.g. while tuning sensitivity).
 
 ### Tuning knobs
 
-If matching feels too strict or too loose against real arcade audio, these are the constants to
-adjust:
+If matching feels too strict or too loose against real arcade audio even at the slider's
+extremes, these are the remaining hardcoded constants to adjust:
 
-- `MIN_MATCH_VOTES` (`CryFingerprintRepository.kt`) — raise to reduce false positives, lower to
-  catch quieter/noisier captures.
+- `MIN_VOTES_STRICT` / `MIN_VOTES_LENIENT` (`CryFingerprintRepository.kt`) — the endpoints the
+  Sensitivity slider interpolates between; widen or narrow this range to change how much the
+  slider actually does.
 - The `0.9` tie-tolerance multiplier in the same file — how close two candidates' vote counts
   need to be to both count as "tied."
 - `AMPLITUDE_GAIN` (`AudioCapture.kt`) — cosmetic only; affects how energetically the mic button
@@ -146,6 +165,16 @@ confirmation dialog (no accidental swipe-deletes).
   bundled assets)
 
 ## Changelog
+
+### 2.3
+- Brought back the match confidence percentage as an opt-in **Show match confidence** toggle in
+  Settings (off by default) — shown next to results on the Listen screen, in History rows, and
+  in the multi-card detail dialog when enabled.
+
+### 2.2
+- The Sensitivity slider is now a real feature instead of UI-only: it scales the fingerprint
+  matcher's minimum-vote threshold live and persists across restarts.
+- Added a **?** help icon next to Sensitivity that opens an in-app calibration guide.
 
 ### 2.1
 - Fixed the result card and History rows using `fillMaxSize()` for their tier-color backgrounds,

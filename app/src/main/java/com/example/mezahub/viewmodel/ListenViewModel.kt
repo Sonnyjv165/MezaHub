@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mezahub.audio.AudioCapture
+import com.example.mezahub.data.AppSettingsRepository
 import com.example.mezahub.data.CryFingerprintRepository
 import com.example.mezahub.data.DetectionHistoryRepository
 import com.example.mezahub.data.SensitivityRepository
@@ -34,10 +35,14 @@ class ListenViewModel(application: Application) : AndroidViewModel(application) 
     /** Live mic input level (0f-1f) while listening, for the bobbing mic animation. */
     val amplitude: StateFlow<Float> = audioCapture.amplitude
 
+    /** Whether to show the match confidence percentage — a Settings toggle. */
+    val showConfidence: StateFlow<Boolean> = AppSettingsRepository.showConfidence
+
     private var captureJob: Job? = null
 
     init {
         SensitivityRepository.ensureLoaded(application)
+        AppSettingsRepository.ensureLoaded(application)
         viewModelScope.launch { CryFingerprintRepository.ensureLoaded(application) }
     }
 

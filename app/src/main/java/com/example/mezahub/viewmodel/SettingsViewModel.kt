@@ -3,6 +3,7 @@ package com.example.mezahub.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mezahub.data.AppSettingsRepository
 import com.example.mezahub.data.CryFingerprintRepository
 import com.example.mezahub.data.SensitivityRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,10 +11,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** Cry Database, sensitivity, and version info all reflect real, persisted state. */
+/** Cry Database, sensitivity, confidence display, and version info all reflect real, persisted state. */
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     val sensitivity: StateFlow<Float> = SensitivityRepository.sensitivity
+
+    val showConfidence: StateFlow<Boolean> = AppSettingsRepository.showConfidence
 
     val loadedCryCount: StateFlow<Int> = CryFingerprintRepository.loadedCount
 
@@ -22,11 +25,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         SensitivityRepository.ensureLoaded(application)
+        AppSettingsRepository.ensureLoaded(application)
         viewModelScope.launch { CryFingerprintRepository.ensureLoaded(application) }
     }
 
     fun onSensitivityChange(value: Float) {
         SensitivityRepository.setSensitivity(getApplication(), value)
+    }
+
+    fun onShowConfidenceChange(value: Boolean) {
+        AppSettingsRepository.setShowConfidence(getApplication(), value)
     }
 
     fun updateDatabase() {

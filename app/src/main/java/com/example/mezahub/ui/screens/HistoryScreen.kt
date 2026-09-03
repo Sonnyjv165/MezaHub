@@ -57,6 +57,7 @@ private val TIMESTAMP_FORMAT = SimpleDateFormat("MMM d, h:mm a", Locale.getDefau
 @Composable
 fun HistoryScreen(modifier: Modifier = Modifier, viewModel: HistoryViewModel = viewModel()) {
     val entries by viewModel.entries.collectAsState()
+    val showConfidence by viewModel.showConfidence.collectAsState()
     var pendingDelete by remember { mutableStateOf<DetectionRecord?>(null) }
     var detailRecord by remember { mutableStateOf<DetectionRecord?>(null) }
 
@@ -84,6 +85,7 @@ fun HistoryScreen(modifier: Modifier = Modifier, viewModel: HistoryViewModel = v
                 items(entries, key = { it.id }) { record ->
                     HistoryRow(
                         record = record,
+                        showConfidence = showConfidence,
                         onDeleteClick = { pendingDelete = record },
                         onRowClick = { if (record.outcomes.size > 1) detailRecord = record },
                     )
@@ -119,12 +121,17 @@ fun HistoryScreen(modifier: Modifier = Modifier, viewModel: HistoryViewModel = v
 
     val recordForDetail = detailRecord
     if (recordForDetail != null) {
-        DetailDialog(record = recordForDetail, onDismiss = { detailRecord = null })
+        DetailDialog(record = recordForDetail, showConfidence = showConfidence, onDismiss = { detailRecord = null })
     }
 }
 
 @Composable
-private fun HistoryRow(record: DetectionRecord, onDeleteClick: () -> Unit, onRowClick: () -> Unit) {
+private fun HistoryRow(
+    record: DetectionRecord,
+    showConfidence: Boolean,
+    onDeleteClick: () -> Unit,
+    onRowClick: () -> Unit,
+) {
     val primary = record.outcomes.first()
     val isExpandable = record.outcomes.size > 1
     val title = if (isExpandable) {
@@ -182,6 +189,15 @@ private fun HistoryRow(record: DetectionRecord, onDeleteClick: () -> Unit, onRow
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (showConfidence) {
+                        Text(
+                            text = "${primary.confidencePercent}%",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = style?.textColor ?: MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
                     if (isExpandable) {
                         Icon(
                             imageVector = Icons.Filled.ChevronRight,
@@ -203,7 +219,7 @@ private fun HistoryRow(record: DetectionRecord, onDeleteClick: () -> Unit, onRow
 }
 
 @Composable
-private fun DetailDialog(record: DetectionRecord, onDismiss: () -> Unit) {
+private fun DetailDialog(record: DetectionRecord, showConfidence: Boolean, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("${record.outcomes.first().speciesName} — possible cards") },
@@ -218,7 +234,7 @@ private fun DetailDialog(record: DetectionRecord, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                record.outcomes.forEach { outcome -> OutcomeDetailRow(outcome) }
+                record.outcomes.forEach { outcome -> OutcomeDetailRow(outcome, showConfidence) }
             }
         },
         confirmButton = {
@@ -228,7 +244,7 @@ private fun DetailDialog(record: DetectionRecord, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun OutcomeDetailRow(outcome: CryOutcome) {
+private fun OutcomeDetailRow(outcome: CryOutcome, showConfidence: Boolean) {
     val style = rarityStyleFor(listOf(outcome))
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -266,6 +282,14 @@ private fun OutcomeDetailRow(outcome: CryOutcome) {
                         tint = style?.textColor ?: MaterialTheme.colorScheme.onSurface,
                         starSize = 12.dp,
                     )
+                    if (showConfidence) {
+                        Text(
+                            text = "${outcome.confidencePercent}% confidence",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = style?.textColor?.copy(alpha = 0.8f)
+                                ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

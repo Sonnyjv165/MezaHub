@@ -1,5 +1,6 @@
 package com.example.mezahub.ui.screens
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,6 +47,7 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier, viewModel: SettingsViewModel = viewModel()) {
     val sensitivity by viewModel.sensitivity.collectAsState()
+    val showConfidence by viewModel.showConfidence.collectAsState()
     val loadedCount by viewModel.loadedCryCount.collectAsState()
     val isUpdating by viewModel.isUpdatingDatabase.collectAsState()
     var showSensitivityHelp by remember { mutableStateOf(false) }
@@ -109,6 +112,27 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: SettingsViewModel =
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+
+        Divider(modifier = Modifier.padding(vertical = 24.dp))
+
+        SectionHeader("Display")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Show match confidence", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Show the % confidence next to identified cries",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = showConfidence, onCheckedChange = viewModel::onShowConfidenceChange)
         }
 
         Divider(modifier = Modifier.padding(vertical = 24.dp))

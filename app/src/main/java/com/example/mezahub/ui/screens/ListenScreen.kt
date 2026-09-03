@@ -62,6 +62,7 @@ fun ListenScreen(modifier: Modifier = Modifier, viewModel: ListenViewModel = vie
     val status by viewModel.status.collectAsState()
     val result by viewModel.result.collectAsState()
     val amplitude by viewModel.amplitude.collectAsState()
+    val showConfidence by viewModel.showConfidence.collectAsState()
     val context = LocalContext.current
     var permissionDenied by remember { mutableStateOf(false) }
 
@@ -109,6 +110,7 @@ fun ListenScreen(modifier: Modifier = Modifier, viewModel: ListenViewModel = vie
             status = status,
             result = result,
             micLevel = amplitude,
+            showConfidence = showConfidence,
             onMicTapped = onMicClick,
             onListenAgain = viewModel::reset,
             onTryAgain = viewModel::reset,
@@ -130,6 +132,7 @@ private fun ListenStateBody(
     status: ListenStatus,
     result: List<CryOutcome>,
     micLevel: Float,
+    showConfidence: Boolean,
     onMicTapped: () -> Unit,
     onListenAgain: () -> Unit,
     onTryAgain: () -> Unit,
@@ -152,7 +155,7 @@ private fun ListenStateBody(
         }
         ListenStatus.RESULT -> {
             BouncedIn(key = result) {
-                ResultCard(outcomes = result, onListenAgain = onListenAgain)
+                ResultCard(outcomes = result, showConfidence = showConfidence, onListenAgain = onListenAgain)
             }
         }
         ListenStatus.NO_MATCH -> {
@@ -185,7 +188,7 @@ private fun BouncedIn(key: Any, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ResultCard(outcomes: List<CryOutcome>, onListenAgain: () -> Unit) {
+private fun ResultCard(outcomes: List<CryOutcome>, showConfidence: Boolean, onListenAgain: () -> Unit) {
     val style = rarityStyleFor(outcomes)
 
     Card(
@@ -255,7 +258,11 @@ private fun ResultCard(outcomes: List<CryOutcome>, onListenAgain: () -> Unit) {
                     StarRow(count = outcome.tier.stars, tint = style?.textColor ?: MaterialTheme.colorScheme.onSecondaryContainer)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = outcome.tier.label,
+                        text = if (showConfidence) {
+                            "${outcome.tier.label} · ${outcome.confidencePercent}% confidence"
+                        } else {
+                            outcome.tier.label
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = style?.textColor?.copy(alpha = 0.8f)
                             ?: MaterialTheme.colorScheme.onSecondaryContainer,
@@ -289,7 +296,11 @@ private fun ResultCard(outcomes: List<CryOutcome>, onListenAgain: () -> Unit) {
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = "${outcome.speciesName} — ${outcome.tier.label}",
+                                        text = if (showConfidence) {
+                                            "${outcome.speciesName} — ${outcome.tier.label} (${outcome.confidencePercent}%)"
+                                        } else {
+                                            "${outcome.speciesName} — ${outcome.tier.label}"
+                                        },
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = style?.textColor ?: MaterialTheme.colorScheme.onSecondaryContainer,
