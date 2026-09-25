@@ -2,7 +2,6 @@ package com.example.mezahub.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -65,58 +64,32 @@ fun PokedexScreen(modifier: Modifier = Modifier, viewModel: PokedexViewModel = v
     Column(modifier = modifier.fillMaxSize()) {
         PokedexHeader(
             title = stringResource(R.string.pokedex_title),
-            subtitle = stringResource(
-                R.string.meta_join,
-                stringResource(R.string.version_label, stats.version),
-                stringResource(R.string.pokedex_subtitle, stats.heardCount, stats.totalCards),
-            ),
+            subtitle = stringResource(R.string.pokedex_subtitle, stats.heardCount, stats.totalCards),
         )
-        if (stats.totalCards == 0) {
-            VersionNotReady(version = stats.version, modifier = Modifier.weight(1f))
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 100.dp),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                item(span = fullWidth) { CompletionCard(stats) }
-                if (stats.mostHeard.isNotEmpty()) {
-                    item(span = fullWidth) { MostHeardCard(stats.mostHeard) }
-                }
-                item(span = fullWidth) {
-                    Text(
-                        text = stringResource(R.string.pokedex_all_cards),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                }
-                items(stats.cards, key = { it.entry.tagId }) { card ->
-                    CardCell(card = card, onClick = { selected = card })
-                }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 100.dp),
+            contentPadding = PaddingValues(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item(span = fullWidth) { CompletionCard(stats) }
+            if (stats.mostHeard.isNotEmpty()) {
+                item(span = fullWidth) { MostHeardCard(stats.mostHeard) }
+            }
+            item(span = fullWidth) {
+                Text(
+                    text = stringResource(R.string.pokedex_all_cards),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+            items(stats.cards, key = { it.entry.tagId }) { card ->
+                CardCell(card = card, onClick = { selected = card })
             }
         }
     }
 
     selected?.let { CardDetailDialog(card = it, onDismiss = { selected = null }) }
-}
-
-/** Shown for a Mezastar version whose card list hasn't been filled in yet. */
-@Composable
-private fun VersionNotReady(version: Int, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.version_empty, version),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-    }
 }
 
 @Composable
@@ -194,7 +167,7 @@ private fun MostHeardCard(species: List<SpeciesCount>) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 species.forEach { s ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                        PokemonIcon(tagId = s.iconTagId, version = s.version, speciesName = s.speciesName, tier = s.tier, size = 60.dp)
+                        PokemonIcon(tagId = s.iconTagId, speciesName = s.speciesName, tier = s.tier, size = 60.dp)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = s.speciesName,
@@ -247,7 +220,6 @@ private fun CardCell(card: CardProgress, onClick: () -> Unit) {
         ) {
             PokemonIcon(
                 tagId = entry.tagId,
-                version = entry.version,
                 speciesName = entry.speciesName,
                 tier = entry.tier,
                 size = 60.dp,
@@ -286,7 +258,6 @@ private fun CardDetailDialog(card: CardProgress, onDismiss: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 PokemonIcon(
                     tagId = entry.tagId,
-                    version = entry.version,
                     speciesName = entry.speciesName,
                     tier = entry.tier,
                     size = 110.dp,

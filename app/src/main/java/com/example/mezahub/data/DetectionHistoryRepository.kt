@@ -18,10 +18,7 @@ data class DetectionRecord(
     val id: String = UUID.randomUUID().toString(),
     val outcomes: List<CryOutcome>,
     val timestampMillis: Long = System.currentTimeMillis(),
-) {
-    /** A detection only ever matches within one version's index, so all outcomes share it. */
-    val version: Int get() = outcomes.first().version
-}
+)
 
 /**
  * Log of real cry detections (newest first), persisted as a flat JSON file in app-private
@@ -30,7 +27,6 @@ data class DetectionRecord(
  */
 object DetectionHistoryRepository {
     private const val FILE_NAME = "detection_history.json"
-    private const val LEGACY_VERSION = 3
 
     private val _records = MutableStateFlow<List<DetectionRecord>>(emptyList())
     val records: StateFlow<List<DetectionRecord>> = _records.asStateFlow()
@@ -116,8 +112,6 @@ object DetectionHistoryRepository {
             speciesName = obj.optString("speciesName"),
             tier = tier,
             confidencePercent = obj.optInt("confidencePercent"),
-            // Records saved before multi-version support were all Version 3 cards.
-            version = obj.optInt("version", LEGACY_VERSION),
         )
     }
 
@@ -131,8 +125,7 @@ object DetectionHistoryRepository {
                         .put("tagId", outcome.tagId)
                         .put("speciesName", outcome.speciesName)
                         .put("tier", outcome.tier.name)
-                        .put("confidencePercent", outcome.confidencePercent)
-                        .put("version", outcome.version),
+                        .put("confidencePercent", outcome.confidencePercent),
                 )
             }
             array.put(
