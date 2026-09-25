@@ -75,8 +75,8 @@ class PokedexStatsTest {
 
     @Test
     fun placeholderVersion_hasNoCards() {
-        val stats = computePokedexStats(emptyList(), MezastarVersion.V4)
-        assertEquals(4, stats.version)
+        val stats = computePokedexStats(emptyList(), MezastarVersion.V1)
+        assertEquals(1, stats.version)
         assertEquals(0, stats.totalCards)
         assertTrue(stats.tiers.isEmpty())
     }

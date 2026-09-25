@@ -164,13 +164,22 @@ active version's detections.
 | 1 | Placeholder, no cards yet |
 | 2 | Placeholder, no cards yet |
 | 3 | 73 cards (see below) |
-| 4 | Placeholder, no cards yet (the latest version) |
+| 4 | 70 cards (the latest version) |
 
 Each version has its own card list in `data/catalog/Version<N>Cards.kt` and its own asset folder
 `assets/versions/vN/` with `cries/` and `icons/`. Tag IDs follow `1-N-xxx` (`1-4-001`, …).
 To add a version's cards, list them as `card("1-4-001", "Name", StarTier.SUPERSTAR)` and drop the
 matching `<tagId>.wav` / `<tagId>.jpg` files in — see `assets/versions/README.md`. A test fails the
 build if a bundled file has no matching card in its version's list.
+
+## The card catalog (Version 4)
+
+`data/catalog/Version4Cards.kt` lists all 70 Version 4 cards (`1-4-001`–`1-4-070`, no regular
+tags) across 63 species: 10 Superstar, 15 Star, 17 4★, 14 3★ and 14 2★. As in Version 3, the
+2★/3★/4★ block is interleaved by evolution line. Seven species appear at two star levels with
+the same cry (Calyrex, Kyurem, Meganium, Typhlosion, Feraligatr, Machamp, Talonflame), and each
+pair uses one byte-identical clip so a match always shows both cards. A unit test enforces this
+for Version 4.
 
 ## The card catalog (Version 3)
 
@@ -262,7 +271,8 @@ Unit tests live in `app/src/test` and run on the JVM with no device needed:
 They cover the FFT, WAV decoding (including malformed files), fingerprint matching (self-match,
 starting mid-clip, background noise, 44.1 kHz mic audio against 22.05 kHz references, tied
 duplicate cries, silence, thresholds), catalog integrity (73 Version 3 cards, unique tag IDs, tier
-counts, the `1-N-xxx` pattern per version, and every bundled cry/icon mapping to a card), History search/filter/sort, Pokédex stats, translation completeness (every key present
+counts, the same for Version 4's 70 cards, the `1-N-xxx` pattern per version, every bundled
+cry/icon mapping to a card, and Version 4's multi-star species sharing one clip), History search/filter/sort, Pokédex stats, translation completeness (every key present
 in every language, with matching placeholders), and the ball-theme set. Synthetic tone
 "melodies" stand in for real cries, so the tests don't depend on the bundled audio.
 
@@ -284,6 +294,18 @@ kept so release crash traces stay readable.
 - JUnit unit tests, Android lint, and GitHub Actions CI; R8-shrunk release builds
 
 ## Changelog
+
+### 4.3
+- Fixed a crash when opening Settings (introduced in 4.1 with the Mezastar Version picker).
+
+### 4.2 — Version 4 cards
+- **Version 4 is set up:** all 70 cards (`1-4-001`–`1-4-070`) with their cries and card art.
+  Pick **Version 4** in Settings → Mezastar Version to use it.
+- Cries converted to 22050 Hz mono (18 MB → 4.5 MB), using the same conversion the app applies
+  when loading, so matching is unchanged.
+- The seven species that appear at two star levels share one clip per pair, so a match shows
+  both possible cards instead of whichever recording happened to be trimmed longer.
+- 2 new unit tests (54 total): Version 4's card counts and the shared-clip rule.
 
 ### 4.1 — Mezastar version placeholders
 - **Mezastar Version picker** in Settings (Versions 1–4). Only the chosen version's cries are

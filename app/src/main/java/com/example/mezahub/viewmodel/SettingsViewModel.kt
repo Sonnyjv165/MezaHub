@@ -27,6 +27,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _isUpdatingDatabase = MutableStateFlow(false)
     val isUpdatingDatabase: StateFlow<Boolean> = _isUpdatingDatabase.asStateFlow()
 
+    // Declared before init, which reads it: Kotlin runs property initializers and init blocks in order.
+    val activeVersion: StateFlow<MezastarVersion> = AppSettingsRepository.activeVersion
+
     init {
         SensitivityRepository.ensureLoaded(application)
         AppSettingsRepository.ensureLoaded(application)
@@ -46,8 +49,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun onBallThemeChange(theme: BallTheme) {
         AppSettingsRepository.setBallTheme(getApplication(), theme)
     }
-
-    val activeVersion: StateFlow<MezastarVersion> = AppSettingsRepository.activeVersion
 
     /** Cards in each version's catalog; 0 means that version is still a placeholder. */
     fun cardCount(version: MezastarVersion): Int = PokemonCryCatalog.cards(version).size

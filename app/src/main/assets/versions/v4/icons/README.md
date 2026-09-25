@@ -2,4 +2,4 @@
 
 One `<tagId>.jpg` (or `.png`/`.webp`) per card listed in `Version4Cards.kt` (e.g. `1-4-001.jpg`).
 
-Status: placeholder, no cards yet. See `../../README.md` for how to add them.
+Status: set up (70 cards). See `../../README.md` for details.

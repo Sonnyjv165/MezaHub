@@ -93,4 +93,32 @@ class PokemonCryCatalogTest {
             }
         }
     }
+
+    @Test
+    fun version4_has70CardsAcross63Species() {
+        val v4 = PokemonCryCatalog.cards(MezastarVersion.V4)
+        assertEquals(70, v4.size)
+        assertEquals(63, v4.map { it.speciesName }.toSet().size)
+        val counts = v4.groupingBy { it.tier }.eachCount()
+        assertEquals(listOf(10, 15, 17, 14, 14), listOf(StarTier.SUPERSTAR, StarTier.STAR, StarTier.FOUR, StarTier.THREE, StarTier.TWO).map { counts[it] })
+        assertEquals((1..70).map { "1-4-%03d".format(it) }, v4.map { it.tagId })
+    }
+
+    /**
+     * A species' cards must share one byte-identical clip: differently trimmed recordings of the
+     * same cry score differently, so the match could drop one card instead of showing both.
+     * Version 3 predates this rule (its clips were trimmed separately), so it isn't checked yet.
+     */
+    @Test
+    fun sameSpeciesCardsShareOneCryFile() {
+        for (version in MezastarVersion.entries - MezastarVersion.V3) {
+            PokemonCryCatalog.cards(version).groupBy { it.speciesName }.values.filter { it.size > 1 }.forEach { cards ->
+                val clips = cards.map { File("src/main/assets/${version.criesDir}/${it.tagId}.wav") }.filter { it.exists() }
+                if (clips.size > 1) {
+                    val first = clips.first().readBytes()
+                    clips.drop(1).forEach { assertTrue("${it.name} differs from ${clips.first().name}", it.readBytes().contentEquals(first)) }
+                }
+            }
+        }
+    }
 }

@@ -7,7 +7,7 @@ versions/
   v1/  cries/  icons/
   v2/  cries/  icons/
   v3/  cries/  icons/     <- fully set up (73 cards)
-  v4/  cries/  icons/
+  v4/  cries/  icons/     <- fully set up (70 cards)
 ```
 
 The user picks their cabinet's version in Settings; only that version's cries are
@@ -32,9 +32,11 @@ analysing it, so anything more is dead weight in the APK. The Version 3 clips we
 from 44.1 kHz stereo this way (24 MB down to 6 MB) with the same downmix/decimation the app
 applies at runtime, so their fingerprints are byte-identical.
 
-If a species' cry is identical across two of its cards (e.g. Sceptile at 1-3-011 and
-1-3-031), copy the same .wav to both tag IDs. The app shows tied matches as multiple possible
-outcomes rather than guessing one.
+If a species' cry is identical across two of its cards (e.g. Meganium at 1-4-012 and
+1-4-030), copy the same .wav to both tag IDs rather than using two separately trimmed
+recordings. The app shows tied matches as multiple possible outcomes, but two recordings trimmed
+differently can score differently and drop one of the cards. A unit test checks this for every
+version except Version 3.
 
 ## Icons
 
