@@ -29,12 +29,13 @@ import com.example.mezahub.data.PokemonIconRepository
 import com.example.mezahub.data.StarTier
 
 /**
- * Card icon for a result outcome. Loads a real image from assets/icons/<tagId>.png when one has
- * been added; otherwise shows a tier-colored placeholder badge with the species' first letter.
+ * Card icon for a result outcome. Loads a real image from assets/versions/v<version>/icons/<tagId>
+ * when one has been added; otherwise shows a tier-colored placeholder badge with the species' first letter.
  */
 @Composable
 fun PokemonIcon(
     tagId: String,
+    version: Int,
     speciesName: String,
     tier: StarTier,
     modifier: Modifier = Modifier,
@@ -42,10 +43,10 @@ fun PokemonIcon(
     desaturated: Boolean = false,
 ) {
     val context = LocalContext.current
-    var bitmap by remember(tagId) { mutableStateOf<ImageBitmap?>(null) }
+    var bitmap by remember(version, tagId) { mutableStateOf<ImageBitmap?>(null) }
 
-    LaunchedEffect(tagId) {
-        bitmap = PokemonIconRepository.load(context, tagId)
+    LaunchedEffect(version, tagId) {
+        bitmap = PokemonIconRepository.load(context, version, tagId)
     }
 
     val current = bitmap

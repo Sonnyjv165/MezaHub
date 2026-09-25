@@ -11,8 +11,8 @@ import java.io.IOException
 import java.util.Collections
 
 /**
- * Loads card icons from assets/icons/<tagId>.{png,webp,jpg} — same drop-in workflow as the
- * cry clips under assets/cries/. A tagId with no matching file simply has no icon; callers
+ * Loads card icons from assets/versions/v<N>/icons/<tagId>.{png,webp,jpg} — same drop-in
+ * workflow as the cry clips under assets/versions/v<N>/cries/. A tagId with no matching file simply has no icon; callers
  * should fall back to a placeholder rather than treat a miss as an error.
  */
 object PokemonIconRepository {
@@ -25,15 +25,18 @@ object PokemonIconRepository {
     // Synchronized (not Concurrent) because a cached miss is stored as null.
     private val cache: MutableMap<String, ImageBitmap?> = Collections.synchronizedMap(HashMap())
 
-    suspend fun load(context: Context, tagId: String): ImageBitmap? {
+    suspend fun load(context: Context, version: Int, tagId: String): ImageBitmap? {
+        // Keyed by version too: regular tags like "R-1-1" can reappear in several versions.
+        val key = "$version/$tagId"
         synchronized(cache) {
-            if (cache.containsKey(tagId)) return cache[tagId]
+            if (cache.containsKey(key)) return cache[key]
         }
+        val iconsDir = MezastarVersion.fromNumber(version).iconsDir
 
         val bitmap = withContext(Dispatchers.IO) {
             for (ext in EXTENSIONS) {
                 val decoded = try {
-                    decodeDownsampled(context, "icons/$tagId.$ext")
+                    decodeDownsampled(context, "$iconsDir/$tagId.$ext")
                 } catch (e: IOException) {
                     null // try next extension
                 }
@@ -42,7 +45,7 @@ object PokemonIconRepository {
             null
         }
 
-        cache[tagId] = bitmap
+        cache[key] = bitmap
         return bitmap
     }
 

@@ -16,15 +16,19 @@ won. MezaHub records that cry through your phone's microphone, matches it agains
 database of reference cries, and shows you the matching Pokémon (or Pokémon, if a cry is shared
 across multiple star-tier cards) — along with its rarity and how it was actually captured.
 
-The app has four screens, all sharing a Pokédex-style red header:
+The app has four screens, all sharing a Pokédex-style header in your chosen Poké Ball theme's color:
 
 - **Listen** — tap the Poké Ball to record a few seconds of audio and identify the cry.
 - **History** — every real detection, persisted locally, with search, tier filters, sorting, and
   undo-able deletes.
-- **Pokédex** — which of the 73 cards you've heard so far, per-tier completion, and your most
-  heard Pokémon.
-- **Settings** — reference-database status/rebuild, a working sensitivity slider (with a
-  built-in calibration guide), a confidence-percentage display toggle, and app/version info.
+- **Pokédex** — which of the active Mezastar version's cards you've heard so far, per-tier
+  completion, and your most heard Pokémon.
+- **Settings** — Mezastar version picker (Versions 1–4), reference-database status/rebuild, a working sensitivity slider (with a
+  built-in calibration guide), a confidence-percentage display toggle, a Poké Ball theme picker,
+  a language picker, and app/version info.
+
+The app is available in English, Japanese, Korean, Simplified and Traditional Chinese,
+Filipino, Thai, Indonesian, and Malay.
 
 ## How the Listen flow works
 
@@ -97,9 +101,10 @@ self-contained, Shazam-style **acoustic fingerprinting** pipeline written from s
    robust to background noise because it only cares about *relative* peak positions, not exact
    loudness.
 6. **Reference index** (`data/CryFingerprintRepository.kt` + `audio/fingerprint/FingerprintIndex.kt`)
-   — on first use (or when you tap **Update Database** in Settings), every `.wav` file in
-   `assets/cries/` is fingerprinted on a background thread and folded into an in-memory inverted
-   index: hash → list of (card tag ID, frame position). Rebuilds are serialized, and a capture
+   — on first use (or when you tap **Update Database** or switch Mezastar version in Settings),
+   every `.wav` file in the active version's `assets/versions/vN/cries/` is fingerprinted on a
+   background thread and folded into an in-memory inverted index: hash → list of (card tag ID,
+   frame position). Only the active version is indexed. Rebuilds are serialized, and a capture
    waits for the index to finish loading rather than matching against an empty one.
 7. **Matching** — the live clip is fingerprinted the same way, then every one of its hashes is
    looked up in the index. Each (candidate tag ID, time offset) pair gets a vote; a real match
@@ -142,14 +147,36 @@ extremes, these are the remaining hardcoded constants to adjust:
 - `CAPTURE_DURATION_MS` (`ListenViewModel.kt`) — how long a capture runs before auto-stopping.
 
 Matching quality is fundamentally limited by the quality of the reference clips in
-`assets/cries/` — clean, representative recordings of each cry (ideally captured from the actual
+`assets/versions/vN/cries/` — clean, representative recordings of each cry (ideally captured from the actual
 arcade cabinet) will always outperform lower-quality or mismatched-source references.
 
-## The card catalog
+## Mezastar versions
 
-`data/PokemonCryCatalog.kt` hardcodes all 73 MezaStar cry cards (70 numbered + 3 regular tags)
-across 65 species, keyed by the game's real tag IDs (e.g. `1-3-011`, `R-1-1`). A few things worth
-knowing:
+Arcades in different countries run different Mezastar versions, each with its own card set.
+**Settings → Mezastar Version** picks the one your cabinet runs (Version 3 by default); only that
+version's cries are fingerprinted and matched, and the Pokédex shows only that version's cards.
+Switching rebuilds the cry database for the new version. Every History entry records which
+version it was heard on (legacy entries count as Version 3), and the Pokédex counts only the
+active version's detections.
+
+| Version | Status |
+|---|---|
+| 1 | Placeholder, no cards yet |
+| 2 | Placeholder, no cards yet |
+| 3 | 73 cards (see below) |
+| 4 | Placeholder, no cards yet (the latest version) |
+
+Each version has its own card list in `data/catalog/Version<N>Cards.kt` and its own asset folder
+`assets/versions/vN/` with `cries/` and `icons/`. Tag IDs follow `1-N-xxx` (`1-4-001`, …).
+To add a version's cards, list them as `card("1-4-001", "Name", StarTier.SUPERSTAR)` and drop the
+matching `<tagId>.wav` / `<tagId>.jpg` files in — see `assets/versions/README.md`. A test fails the
+build if a bundled file has no matching card in its version's list.
+
+## The card catalog (Version 3)
+
+`data/catalog/Version3Cards.kt` hardcodes all 73 Version 3 cry cards (70 numbered + 3 regular
+tags) across 65 species, keyed by the game's real tag IDs (e.g. `1-3-011`, `R-1-1`).
+`data/PokemonCryCatalog.kt` looks cards up per version. A few things worth knowing:
 
 - The 2★/3★/4★ block (`1-3-026`–`1-3-070`) is **not** grouped by tier in the real numbering —
   it's interleaved by evolution line (each stage of a line gets consecutive IDs), so tier is
@@ -157,10 +184,10 @@ knowing:
   chain.
 - Several species recur as separate cards at different tiers (Sceptile, Blaziken, Swampert,
   Coalossal, Haxorus, Grimmsnarl, Pikachu) — `tagId`, not species name, is always the unique key.
-- Reference audio and card art live in `assets/cries/<tagId>.wav` and `assets/icons/<tagId>.png`
-  respectively — a missing file just means that card can't be matched/won't have art yet, it
-  doesn't break anything else. Cries are stored as 22050 Hz mono, the rate the fingerprinter
-  works at anyway (see `assets/cries/README.md`).
+- Reference audio and card art live in `assets/versions/v3/cries/<tagId>.wav` and
+  `assets/versions/v3/icons/<tagId>.jpg` respectively — a missing file just means that card can't
+  be matched/won't have art yet, it doesn't break anything else. Cries are stored as 22050 Hz
+  mono, the rate the fingerprinter works at anyway (see `assets/versions/README.md`).
 
 ## History & persistence
 
@@ -179,13 +206,50 @@ Search, sort, and filter are session-only — History always opens newest-first 
 ## Pokédex
 
 The Pokédex tab (`ui/screens/PokedexScreen.kt`, stats in `data/PokedexStats.kt`) turns your
-history into collection progress: how many of the 73 cards you've heard, completion per tier,
+history into collection progress for the active Mezastar version: how many of its cards (73 for
+Version 3) you've heard, completion per tier,
 your top three most heard species, and a grid of every card — unheard cards are shown in
 greyscale. Tap any card for its tier, tag ID, times heard, and when you last heard it.
 
 When a detection tied several cards (one cry shared across tiers), every one of those cards
 counts as heard, since that cry genuinely was heard. For "most heard", that detection counts once
 per species.
+
+## Themes
+
+Settings has a **Theme** picker with 13 Poké Ball themes from Generations I and II:
+
+| Generation | Balls |
+|---|---|
+| I | Poké Ball (default), Great Ball, Ultra Ball, Safari Ball, Master Ball |
+| II | Fast Ball, Level Ball, Lure Ball, Heavy Ball, Love Ball, Friend Ball, Moon Ball, Sport Ball |
+
+A theme recolors the whole app (the header and status bar, buttons, highlights, and light/dark
+color schemes derived from the ball's colors) and redraws every Poké Ball in the app — the mic
+button, the "identifying" wobble, and the permission prompt — in that ball's design. Balls are
+drawn in code (`ui/components/Pokeball.kt`), so they're simplified takes on each design rather
+than official artwork. Each theme is one entry in `ui/theme/BallTheme.kt` (colors plus a pattern
+such as the Great Ball's side patches or the Master Ball's "M"), so adding later generations is
+mostly a matter of adding entries. The choice is saved and restored on launch. Tier colors on
+results (2★ red … 6★ galaxy) stay the same in every theme, since they carry meaning.
+
+## Languages
+
+MezaHub is translated into Japanese, Korean, Simplified Chinese, Traditional Chinese, Filipino,
+Thai, Indonesian, and Malay. It follows the phone's language by default, and **Settings →
+Language** lets you pick a different one just for MezaHub (on Android 13+ this also appears in the
+system's per-app language settings). All text lives in `res/values*/strings.xml`, with plural forms
+and numbered placeholders so each language can order sentences naturally; dates follow the
+chosen language's format.
+
+Official Pokémon terms are used where they exist (ball names, "Pokédex", and the anime's "Who's
+that Pokémon?" line). Pokémon species names stay in English to match the EN edition tags.
+The translations are careful but not professionally reviewed, so native-speaker corrections are
+welcome — each language is a single `strings.xml` file.
+
+Adding a language: add a `values-xx/strings.xml`, an entry in `data/AppLanguage.kt`, and a line
+in `res/xml/locales_config.xml`. `TranslationsTest` fails the build if any key is missing or a
+placeholder doesn't match English.
 
 ## Testing & CI
 
@@ -197,9 +261,10 @@ Unit tests live in `app/src/test` and run on the JVM with no device needed:
 
 They cover the FFT, WAV decoding (including malformed files), fingerprint matching (self-match,
 starting mid-clip, background noise, 44.1 kHz mic audio against 22.05 kHz references, tied
-duplicate cries, silence, thresholds), catalog integrity (73 cards, unique tag IDs, tier
-counts), History search/filter/sort, and Pokédex stats. Synthetic tone "melodies" stand in for
-real cries, so the tests don't depend on the bundled audio.
+duplicate cries, silence, thresholds), catalog integrity (73 Version 3 cards, unique tag IDs, tier
+counts, the `1-N-xxx` pattern per version, and every bundled cry/icon mapping to a card), History search/filter/sort, Pokédex stats, translation completeness (every key present
+in every language, with matching placeholders), and the ball-theme set. Synthetic tone
+"melodies" stand in for real cries, so the tests don't depend on the bundled audio.
 
 `.github/workflows/android.yml` runs the unit tests, Android lint, and a debug build on every
 push and pull request to `main`, and uploads the reports and debug APK as build artifacts.
@@ -215,9 +280,38 @@ kept so release crash traces stay readable.
   audio/DSP/ML dependency
 - Local-only persistence (JSON file for history, `SharedPreferences` for settings, in-memory
   fingerprint index rebuilt from bundled assets); no network access
+- AppCompat per-app language API for in-app language switching (all Android versions)
 - JUnit unit tests, Android lint, and GitHub Actions CI; R8-shrunk release builds
 
 ## Changelog
+
+### 4.1 — Mezastar version placeholders
+- **Mezastar Version picker** in Settings (Versions 1–4). Only the chosen version's cries are
+  matched and only its cards appear in the Pokédex; switching rebuilds the cry database.
+- Version 3 is fully set up (73 cards). Versions 1, 2 and 4 are placeholders, ready for their
+  card lists and audio.
+- Each version has its own card list (`data/catalog/Version<N>Cards.kt`) and asset folder
+  (`assets/versions/vN/cries` and `icons`). The Version 3 files moved to `assets/versions/v3/`.
+- History entries record their version ("Ver. 3" next to the time). Older entries count as
+  Version 3.
+- The Listen screen shows which version it's listening for, and says so if that version has no
+  cards yet. The Pokédex header shows the version.
+- 6 new unit tests (52 total), covering per-version tag IDs, version-scoped lookups and stats,
+  and bundled assets matching their catalog.
+
+### 4.0 — Poké Ball themes and translations
+- **Poké Ball themes:** 13 selectable themes from Generations I–II (Poké, Great, Ultra, Safari,
+  Master, Fast, Level, Lure, Heavy, Love, Friend, Moon, and Sport Ball). Each recolors the app
+  and redraws every Poké Ball in its own design. The choice is saved.
+- **Translations:** Japanese, Korean, Simplified Chinese, Traditional Chinese, Filipino, Thai,
+  Indonesian, and Malay, plus an in-app **Language** picker (and Android 13+ per-app language
+  support).
+- Every piece of UI text moved into string resources, with proper plural handling; dates now
+  follow the selected language's format.
+- Microphone error messages are now typed reasons shown in the user's language, instead of
+  English text coming from the audio layer.
+- The History filter shows as highlighted when active, visible on every theme's header color.
+- 6 new unit tests (46 total) covering translation completeness and the theme set.
 
 ### 3.0 — Reliability, Pokédex, and a Pokémon-themed redesign
 **Reliability**

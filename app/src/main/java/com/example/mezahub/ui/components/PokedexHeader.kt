@@ -23,13 +23,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.mezahub.ui.theme.LocalBallTheme
 import com.example.mezahub.ui.theme.PokedexLensBlue
-import com.example.mezahub.ui.theme.PokedexRed
-import com.example.mezahub.ui.theme.PokedexRedDark
 
 /**
- * Screen header styled after the classic Pokédex: a red band with the big blue lens and three
- * indicator lights. [actions] sit on the right, tinted for the red background (use Color.White).
+ * Screen header styled after the classic Pokédex: a band in the active ball theme's color with the
+ * big blue lens and three indicator lights. Tint [actions] with `LocalBallTheme.current.onHeader`.
  */
 @Composable
 fun PokedexHeader(
@@ -38,11 +37,12 @@ fun PokedexHeader(
     subtitle: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    val theme = LocalBallTheme.current
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(PokedexRed)
+                .background(theme.header)
                 .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -54,7 +54,7 @@ fun PokedexHeader(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.headlineSmall,
-                    color = Color.White,
+                    color = theme.onHeader,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -62,7 +62,7 @@ fun PokedexHeader(
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = theme.onHeader.copy(alpha = 0.85f),
                     )
                 }
             }
@@ -73,7 +73,7 @@ fun PokedexHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(4.dp)
-                .background(PokedexRedDark),
+                .background(theme.headerLip),
         )
     }
 }

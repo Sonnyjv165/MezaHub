@@ -15,8 +15,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlin.math.sqrt
 
+/** Why the mic couldn't be used — mapped to user-facing (translated) text by the UI. */
+enum class MicErrorReason { UNSUPPORTED_FORMAT, OPEN_FAILED, BUSY, STOPPED_RESPONDING }
+
 /** The mic exists and permission is granted, but it can't be used right now (busy, broken, etc.). */
-class MicUnavailableException(message: String) : Exception(message)
+class MicUnavailableException(val reason: MicErrorReason) : Exception(reason.name)
 
 /** Captures short mono PCM clips from the device mic. No fingerprinting happens here. */
 class AudioCapture(private val context: Context) {
@@ -56,7 +59,7 @@ class AudioCapture(private val context: Context) {
             AudioFormat.ENCODING_PCM_16BIT,
         )
         if (minBufferSize <= 0) {
-            throw MicUnavailableException("This device doesn't support the recording format MezaHub needs.")
+            throw MicUnavailableException(MicErrorReason.UNSUPPORTED_FORMAT)
         }
 
         val recorder = try {
@@ -68,11 +71,11 @@ class AudioCapture(private val context: Context) {
                 minBufferSize * 2,
             )
         } catch (e: IllegalArgumentException) {
-            throw MicUnavailableException("Couldn't open the microphone.")
+            throw MicUnavailableException(MicErrorReason.OPEN_FAILED)
         }
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
             recorder.release()
-            throw MicUnavailableException("Couldn't open the microphone. Another app may be using it.")
+            throw MicUnavailableException(MicErrorReason.OPEN_FAILED)
         }
 
         val maxSamples = (SAMPLE_RATE.toLong() * maxDurationMs / 1000L).toInt()
@@ -83,18 +86,15 @@ class AudioCapture(private val context: Context) {
             try {
                 recorder.startRecording()
             } catch (e: IllegalStateException) {
-                throw MicUnavailableException("Couldn't start recording. Another app may be using the microphone.")
+                throw MicUnavailableException(MicErrorReason.BUSY)
             }
             if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
-                throw MicUnavailableException(
-                    "The microphone is busy. Close any app that's recording (a call, voice " +
-                        "assistant, or screen recorder) and try again.",
-                )
+                throw MicUnavailableException(MicErrorReason.BUSY)
             }
             val chunk = ShortArray(minBufferSize)
             while (written < maxSamples && currentCoroutineContext().isActive) {
                 val read = recorder.read(chunk, 0, chunk.size)
-                if (read < 0) throw MicUnavailableException("The microphone stopped responding (error $read).")
+                if (read < 0) throw MicUnavailableException(MicErrorReason.STOPPED_RESPONDING)
                 if (read == 0) break
                 val toCopy = minOf(read, maxSamples - written)
                 System.arraycopy(chunk, 0, output, written, toCopy)

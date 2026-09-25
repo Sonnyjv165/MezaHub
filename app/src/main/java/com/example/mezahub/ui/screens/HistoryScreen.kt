@@ -1,6 +1,7 @@
 package com.example.mezahub.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -54,11 +57,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.mezahub.R
 import com.example.mezahub.data.DetectionRecord
 import com.example.mezahub.data.StarTier
 import com.example.mezahub.model.CryOutcome
@@ -66,10 +71,12 @@ import com.example.mezahub.ui.components.PokedexHeader
 import com.example.mezahub.ui.components.Pokeball
 import com.example.mezahub.ui.components.PokemonIcon
 import com.example.mezahub.ui.components.formatTimestamp
+import com.example.mezahub.ui.components.quantityString
 import com.example.mezahub.ui.components.RarityBackground
 import com.example.mezahub.ui.components.StarRow
 import com.example.mezahub.ui.components.rarityStyleFor
-import com.example.mezahub.ui.theme.PokemonYellow
+import com.example.mezahub.ui.theme.BallStyle
+import com.example.mezahub.ui.theme.LocalBallTheme
 import com.example.mezahub.viewmodel.HistoryViewModel
 import kotlinx.coroutines.launch
 
@@ -91,22 +98,34 @@ fun HistoryScreen(modifier: Modifier = Modifier, viewModel: HistoryViewModel = v
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
+            val headerTheme = LocalBallTheme.current
             PokedexHeader(
-                title = "History",
-                subtitle = "$totalCount ${if (totalCount == 1) "cry" else "cries"} logged",
+                title = stringResource(R.string.history_title),
+                subtitle = quantityString(R.plurals.history_count, totalCount, totalCount),
                 actions = {
                     IconButton(onClick = { filterDialogOpen = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.FilterList,
-                            contentDescription = if (tierFilter.isEmpty()) "Filter by star tier" else "Filter by star tier (active)",
-                            tint = if (tierFilter.isEmpty()) Color.White else PokemonYellow,
-                        )
+                        // An active filter shows as an inverted pill, visible on any header color.
+                        val active = tierFilter.isNotEmpty()
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(if (active) headerTheme.onHeader else Color.Transparent, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FilterList,
+                                contentDescription = stringResource(if (active) R.string.history_filter_active else R.string.history_filter),
+                                tint = if (active) headerTheme.header else headerTheme.onHeader,
+                            )
+                        }
                     }
                     IconButton(onClick = viewModel::toggleSortDirection) {
                         Icon(
                             imageVector = if (sortAscending) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
-                            contentDescription = if (sortAscending) "Sorted oldest first" else "Sorted newest first",
-                            tint = Color.White,
+                            contentDescription = stringResource(
+                                if (sortAscending) R.string.history_sorted_oldest else R.string.history_sorted_newest,
+                            ),
+                            tint = headerTheme.onHeader,
                         )
                     }
                 },
@@ -119,12 +138,12 @@ fun HistoryScreen(modifier: Modifier = Modifier, viewModel: HistoryViewModel = v
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 16.dp, top = 12.dp),
-                    placeholder = { Text("Search by Pokémon name") },
+                    placeholder = { Text(stringResource(R.string.history_search_hint)) },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     trailingIcon = if (searchQuery.isNotEmpty()) {
                         {
                             IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Clear search")
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.history_clear_search))
                             }
                         }
                     } else {
@@ -143,19 +162,22 @@ fun HistoryScreen(modifier: Modifier = Modifier, viewModel: HistoryViewModel = v
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "Showing: " + StarTier.entries.filter { it in tierFilter }.joinToString { it.label },
+                            text = stringResource(
+                                R.string.history_showing,
+                                StarTier.entries.filter { it in tierFilter }.map { stringResource(it.labelRes) }.joinToString(),
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
                         )
-                        TextButton(onClick = viewModel::clearTierFilter) { Text("Clear") }
+                        TextButton(onClick = viewModel::clearTierFilter) { Text(stringResource(R.string.clear)) }
                     }
                 }
             }
 
             when {
-                totalCount == 0 -> EmptyHistory("No catches yet — hit Listen to identify your first cry!")
-                entries.isEmpty() -> EmptyHistory("No catches match your search or filter.")
+                totalCount == 0 -> EmptyHistory(stringResource(R.string.history_empty))
+                entries.isEmpty() -> EmptyHistory(stringResource(R.string.history_no_results))
                 else -> LazyColumn(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 80.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -177,10 +199,13 @@ fun HistoryScreen(modifier: Modifier = Modifier, viewModel: HistoryViewModel = v
     val recordToDelete = pendingDelete
     if (recordToDelete != null) {
         val speciesLabel = recordToDelete.outcomes.first().speciesName
+        // Resolved here: the snackbar is shown from a coroutine, outside composition.
+        val deletedMessage = stringResource(R.string.history_deleted, speciesLabel)
+        val undoLabel = stringResource(R.string.undo)
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete this record?") },
-            text = { Text("This will remove the $speciesLabel entry from your history.") },
+            title = { Text(stringResource(R.string.history_delete_title)) },
+            text = { Text(stringResource(R.string.history_delete_body, speciesLabel)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -189,20 +214,20 @@ fun HistoryScreen(modifier: Modifier = Modifier, viewModel: HistoryViewModel = v
                         scope.launch {
                             snackbarHostState.currentSnackbarData?.dismiss()
                             val result = snackbarHostState.showSnackbar(
-                                message = "Deleted $speciesLabel",
-                                actionLabel = "Undo",
+                                message = deletedMessage,
+                                actionLabel = undoLabel,
                                 duration = SnackbarDuration.Short,
                             )
                             if (result == SnackbarResult.ActionPerformed) viewModel.restoreEntry(recordToDelete)
                         }
                     },
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             },
         )
@@ -232,7 +257,7 @@ private fun EmptyHistory(message: String) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Pokeball(size = 64.dp, topColor = Color(0xFF9E9E9E), modifier = Modifier.graphicsLayer { alpha = 0.6f })
+            Pokeball(size = 64.dp, style = BallStyle.GREYED, modifier = Modifier.graphicsLayer { alpha = 0.6f })
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = message,
@@ -253,11 +278,11 @@ private fun TierFilterDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Filter by star tier") },
+        title = { Text(stringResource(R.string.filter_title)) },
         text = {
             Column {
                 Text(
-                    text = "Show only catches at these tiers. Leave all unchecked to show everything.",
+                    text = stringResource(R.string.filter_body),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -270,7 +295,7 @@ private fun TierFilterDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Checkbox(checked = tier in selectedTiers, onCheckedChange = { onToggleTier(tier) })
-                        Text(text = tier.label, style = MaterialTheme.typography.bodyMedium)
+                        Text(text = stringResource(tier.labelRes), style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.width(8.dp))
                         StarRow(count = tier.stars, tint = MaterialTheme.colorScheme.onSurfaceVariant, starSize = 12.dp)
                     }
@@ -278,10 +303,10 @@ private fun TierFilterDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
         },
         dismissButton = {
-            TextButton(onClick = onClear) { Text("Clear filter") }
+            TextButton(onClick = onClear) { Text(stringResource(R.string.filter_clear)) }
         },
     )
 }
@@ -296,7 +321,7 @@ private fun HistoryRow(
     val primary = record.outcomes.first()
     val isExpandable = record.outcomes.size > 1
     val title = if (isExpandable) {
-        "${primary.speciesName} +${record.outcomes.size - 1} more"
+        stringResource(R.string.history_more, primary.speciesName, record.outcomes.size - 1)
     } else {
         primary.speciesName
     }
@@ -325,6 +350,7 @@ private fun HistoryRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PokemonIcon(
                         tagId = primary.tagId,
+                        version = primary.version,
                         speciesName = primary.speciesName,
                         tier = primary.tier,
                         size = 56.dp,
@@ -342,7 +368,11 @@ private fun HistoryRow(
                             starSize = 13.dp,
                         )
                         Text(
-                            text = formatTimestamp(record.timestampMillis),
+                            text = stringResource(
+                                R.string.meta_join,
+                                formatTimestamp(record.timestampMillis),
+                                stringResource(R.string.version_short, record.version),
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = style?.textColor?.copy(alpha = 0.8f)
                                 ?: MaterialTheme.colorScheme.onSurfaceVariant,
@@ -352,7 +382,7 @@ private fun HistoryRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (showConfidence) {
                         Text(
-                            text = "${primary.confidencePercent}%",
+                            text = stringResource(R.string.confidence_percent, primary.confidencePercent),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = style?.textColor ?: MaterialTheme.colorScheme.onSurface,
@@ -362,14 +392,14 @@ private fun HistoryRow(
                     if (isExpandable) {
                         Icon(
                             imageVector = Icons.Filled.ChevronRight,
-                            contentDescription = "View all possible cards",
+                            contentDescription = stringResource(R.string.cd_view_possible_cards),
                             tint = style?.textColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     IconButton(onClick = onDeleteClick) {
                         Icon(
                             imageVector = Icons.Filled.DeleteOutline,
-                            contentDescription = "Delete this record",
+                            contentDescription = stringResource(R.string.cd_delete_record),
                             tint = style?.textColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -383,15 +413,19 @@ private fun HistoryRow(
 private fun DetailDialog(record: DetectionRecord, showConfidence: Boolean, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("${record.outcomes.first().speciesName} — possible cards") },
+        title = { Text(stringResource(R.string.history_detail_title, record.outcomes.first().speciesName)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = "This cry matched ${record.outcomes.size} cards with identical audio, " +
-                        "recorded ${formatTimestamp(record.timestampMillis)}.",
+                    text = quantityString(
+                        R.plurals.history_detail_body,
+                        record.outcomes.size,
+                        record.outcomes.size,
+                        formatTimestamp(record.timestampMillis),
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -399,7 +433,7 @@ private fun DetailDialog(record: DetectionRecord, showConfidence: Boolean, onDis
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
         },
     )
 }
@@ -426,6 +460,7 @@ private fun OutcomeDetailRow(outcome: CryOutcome, showConfidence: Boolean) {
             ) {
                 PokemonIcon(
                     tagId = outcome.tagId,
+                    version = outcome.version,
                     speciesName = outcome.speciesName,
                     tier = outcome.tier,
                     size = 44.dp,
@@ -433,7 +468,7 @@ private fun OutcomeDetailRow(outcome: CryOutcome, showConfidence: Boolean) {
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = outcome.tier.label,
+                        text = stringResource(outcome.tier.labelRes),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = style?.textColor ?: MaterialTheme.colorScheme.onSurface,
@@ -445,7 +480,7 @@ private fun OutcomeDetailRow(outcome: CryOutcome, showConfidence: Boolean) {
                     )
                     if (showConfidence) {
                         Text(
-                            text = "${outcome.confidencePercent}% confidence",
+                            text = stringResource(R.string.confidence_line, outcome.confidencePercent),
                             style = MaterialTheme.typography.bodySmall,
                             color = style?.textColor?.copy(alpha = 0.8f)
                                 ?: MaterialTheme.colorScheme.onSurfaceVariant,

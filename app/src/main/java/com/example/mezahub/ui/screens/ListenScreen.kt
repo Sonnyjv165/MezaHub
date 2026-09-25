@@ -65,6 +65,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -72,6 +73,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.mezahub.R
+import com.example.mezahub.audio.MicErrorReason
+import com.example.mezahub.data.PokemonCryCatalog
 import com.example.mezahub.data.StarTier
 import com.example.mezahub.model.CryOutcome
 import com.example.mezahub.model.ListenStatus
@@ -82,7 +86,9 @@ import com.example.mezahub.ui.components.PokeballWatermark
 import com.example.mezahub.ui.components.PokemonIcon
 import com.example.mezahub.ui.components.RarityBackground
 import com.example.mezahub.ui.components.StarRow
+import com.example.mezahub.ui.components.quantityString
 import com.example.mezahub.ui.components.rarityStyleFor
+import com.example.mezahub.ui.theme.BallStyle
 import com.example.mezahub.viewmodel.ListenViewModel
 import kotlinx.coroutines.delay
 
@@ -93,8 +99,10 @@ fun ListenScreen(modifier: Modifier = Modifier, viewModel: ListenViewModel = vie
     val result by viewModel.result.collectAsState()
     val amplitude by viewModel.amplitude.collectAsState()
     val showConfidence by viewModel.showConfidence.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
+    val errorReason by viewModel.errorReason.collectAsState()
+    val permissionRevoked by viewModel.permissionRevoked.collectAsState()
     val loadedCryCount by viewModel.loadedCryCount.collectAsState()
+    val activeVersion by viewModel.activeVersion.collectAsState()
     val context = LocalContext.current
 
     var hasPermission by remember { mutableStateOf(context.hasMicPermission()) }
@@ -159,8 +167,8 @@ fun ListenScreen(modifier: Modifier = Modifier, viewModel: ListenViewModel = vie
 
     Column(modifier = modifier.fillMaxSize()) {
         PokedexHeader(
-            title = "MezaHub",
-            subtitle = "Pokemon Mezastar bonus catch listener for pokemon cries",
+            title = stringResource(R.string.app_name),
+            subtitle = stringResource(R.string.app_tagline),
         )
         Box(
             modifier = Modifier
@@ -185,8 +193,10 @@ fun ListenScreen(modifier: Modifier = Modifier, viewModel: ListenViewModel = vie
                     result = result,
                     micLevel = amplitude,
                     showConfidence = showConfidence,
-                    errorMessage = errorMessage,
+                    errorMessage = micErrorMessage(errorReason, permissionRevoked),
                     databaseEmpty = loadedCryCount == 0,
+                    activeVersion = activeVersion.number,
+                    versionHasCards = PokemonCryCatalog.cards(activeVersion).isNotEmpty(),
                     onMicTapped = onMicClick,
                     onReset = viewModel::reset,
                 )
@@ -211,8 +221,10 @@ private fun ListenStateBody(
     result: List<CryOutcome>,
     micLevel: Float,
     showConfidence: Boolean,
-    errorMessage: String?,
+    errorMessage: String,
     databaseEmpty: Boolean,
+    activeVersion: Int,
+    versionHasCards: Boolean,
     onMicTapped: () -> Unit,
     onReset: () -> Unit,
 ) {
@@ -220,20 +232,27 @@ private fun ListenStateBody(
         ListenStatus.IDLE -> {
             MicButton(isListening = false, onClick = onMicTapped)
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Tap the Poké Ball to listen", style = MaterialTheme.typography.titleMedium)
+            Text(text = stringResource(R.string.listen_idle_title), style = MaterialTheme.typography.titleMedium)
             Text(
-                text = "Hold your phone near the cabinet speaker during the bonus round",
+                text = stringResource(R.string.listen_idle_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.listen_active_version, activeVersion),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
             )
         }
         ListenStatus.LISTENING -> {
             MicButton(isListening = true, onClick = onMicTapped, micLevel = micLevel)
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Listening…", style = MaterialTheme.typography.titleMedium)
+            Text(text = stringResource(R.string.listen_listening_title), style = MaterialTheme.typography.titleMedium)
             Text(
-                text = "Tap again to stop",
+                text = stringResource(R.string.listen_listening_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -241,9 +260,9 @@ private fun ListenStateBody(
         ListenStatus.PROCESSING -> {
             WobblingPokeball()
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Who's that Pokémon?", style = MaterialTheme.typography.titleLarge)
+            Text(text = stringResource(R.string.listen_processing_title), style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
             Text(
-                text = "Identifying the cry…",
+                text = stringResource(R.string.listen_processing_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -251,7 +270,14 @@ private fun ListenStateBody(
         ListenStatus.RESULT -> BouncedIn(key = result) {
             ResultCard(outcomes = result, showConfidence = showConfidence, onListenAgain = onReset)
         }
-        ListenStatus.NO_MATCH -> NoMatchBody(databaseEmpty = databaseEmpty, onTryAgain = onReset)
+        ListenStatus.NO_MATCH -> NoMatchBody(
+            message = when {
+                !versionHasCards -> stringResource(R.string.version_empty, activeVersion)
+                databaseEmpty -> stringResource(R.string.no_match_empty_db)
+                else -> stringResource(R.string.no_match_hint)
+            },
+            onTryAgain = onReset,
+        )
         ListenStatus.MIC_ERROR -> MicErrorBody(message = errorMessage, onTryAgain = onReset)
     }
 }
@@ -334,7 +360,7 @@ private fun ResultCard(outcomes: List<CryOutcome>, showConfidence: Boolean, onLi
                         Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = style.textColor, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = style.label,
+                            text = stringResource(style.labelRes),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.ExtraBold,
                             color = style.textColor,
@@ -349,13 +375,14 @@ private fun ResultCard(outcomes: List<CryOutcome>, showConfidence: Boolean, onLi
                     val outcome = outcomes.first()
                     PokemonIcon(
                         tagId = outcome.tagId,
+                        version = outcome.version,
                         speciesName = outcome.speciesName,
                         tier = outcome.tier,
                         size = style?.iconSize ?: 96.dp,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "It's ${outcome.speciesName}!",
+                        text = stringResource(R.string.listen_result_single, outcome.speciesName),
                         style = MaterialTheme.typography.headlineSmall,
                         color = textColor,
                         textAlign = TextAlign.Center,
@@ -365,22 +392,22 @@ private fun ResultCard(outcomes: List<CryOutcome>, showConfidence: Boolean, onLi
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (showConfidence) {
-                            "${outcome.tier.label} · ${outcome.confidencePercent}% confidence"
+                            stringResource(R.string.tier_with_confidence, stringResource(outcome.tier.labelRes), outcome.confidencePercent)
                         } else {
-                            outcome.tier.label
+                            stringResource(outcome.tier.labelRes)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = textColor.copy(alpha = 0.8f),
                     )
                 } else {
                     Text(
-                        text = "Could be one of ${outcomes.size} cards",
+                        text = quantityString(R.plurals.listen_result_multi, outcomes.size, outcomes.size),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = textColor,
                     )
                     Text(
-                        text = "This cry sounds identical across these tags",
+                        text = stringResource(R.string.listen_result_multi_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = textColor.copy(alpha = 0.8f),
                     )
@@ -390,6 +417,7 @@ private fun ResultCard(outcomes: List<CryOutcome>, showConfidence: Boolean, onLi
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 PokemonIcon(
                                     tagId = outcome.tagId,
+                                    version = outcome.version,
                                     speciesName = outcome.speciesName,
                                     tier = outcome.tier,
                                     size = 48.dp,
@@ -398,9 +426,14 @@ private fun ResultCard(outcomes: List<CryOutcome>, showConfidence: Boolean, onLi
                                 Column {
                                     Text(
                                         text = if (showConfidence) {
-                                            "${outcome.speciesName} — ${outcome.tier.label} (${outcome.confidencePercent}%)"
+                                            stringResource(
+                                                R.string.outcome_line_confidence,
+                                                outcome.speciesName,
+                                                stringResource(outcome.tier.labelRes),
+                                                outcome.confidencePercent,
+                                            )
                                         } else {
-                                            "${outcome.speciesName} — ${outcome.tier.label}"
+                                            stringResource(R.string.outcome_line, outcome.speciesName, stringResource(outcome.tier.labelRes))
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold,
@@ -414,34 +447,30 @@ private fun ResultCard(outcomes: List<CryOutcome>, showConfidence: Boolean, onLi
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onListenAgain) { Text("Listen again") }
+                Button(onClick = onListenAgain) { Text(stringResource(R.string.listen_again)) }
             }
         }
     }
 }
 
 @Composable
-private fun NoMatchBody(databaseEmpty: Boolean, onTryAgain: () -> Unit) {
-    Pokeball(size = 72.dp, topColor = Color(0xFF9E9E9E), modifier = Modifier.graphicsLayer { alpha = 0.7f })
+private fun NoMatchBody(message: String, onTryAgain: () -> Unit) {
+    Pokeball(size = 72.dp, style = BallStyle.GREYED, modifier = Modifier.graphicsLayer { alpha = 0.7f })
     Spacer(modifier = Modifier.height(16.dp))
-    Text(text = "Hmm… no Pokémon recognized", style = MaterialTheme.typography.titleMedium)
+    Text(text = stringResource(R.string.no_match_title), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-        text = if (databaseEmpty) {
-            "Your cry database is empty, so nothing can be matched yet. Open Settings and tap Update Database."
-        } else {
-            "Hold your phone closer to the cabinet speaker, or raise Sensitivity in Settings if this keeps happening."
-        },
+        text = message,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
     )
     Spacer(modifier = Modifier.height(20.dp))
-    OutlinedButton(onClick = onTryAgain) { Text("Try again") }
+    OutlinedButton(onClick = onTryAgain) { Text(stringResource(R.string.try_again)) }
 }
 
 @Composable
-private fun MicErrorBody(message: String?, onTryAgain: () -> Unit) {
+private fun MicErrorBody(message: String, onTryAgain: () -> Unit) {
     Icon(
         imageVector = Icons.Filled.MicOff,
         contentDescription = null,
@@ -449,16 +478,16 @@ private fun MicErrorBody(message: String?, onTryAgain: () -> Unit) {
         tint = MaterialTheme.colorScheme.error,
     )
     Spacer(modifier = Modifier.height(16.dp))
-    Text(text = "Microphone unavailable", style = MaterialTheme.typography.titleMedium)
+    Text(text = stringResource(R.string.mic_error_title), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-        text = message ?: "The microphone isn't available right now.",
+        text = message,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
     )
     Spacer(modifier = Modifier.height(20.dp))
-    OutlinedButton(onClick = onTryAgain) { Text("Try again") }
+    OutlinedButton(onClick = onTryAgain) { Text(stringResource(R.string.try_again)) }
 }
 
 @Composable
@@ -471,14 +500,14 @@ private fun PermissionBlockedBanner(onOpenSettings: () -> Unit) {
         ),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "Microphone access is blocked", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.mic_blocked_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "MezaHub can't hear the cabinet without it. Turn on the microphone permission in system settings.",
+                text = stringResource(R.string.mic_blocked_body),
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onOpenSettings) { Text("Open settings") }
+            Button(onClick = onOpenSettings) { Text(stringResource(R.string.open_settings)) }
         }
     }
 }
@@ -488,18 +517,24 @@ private fun MicRationaleDialog(onAllow: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Pokeball(size = 40.dp) },
-        title = { Text("Let MezaHub hear the cry") },
-        text = {
-            Text(
-                "When you tap the Poké Ball, MezaHub listens for a few seconds to recognize the " +
-                    "cabinet's bonus-round cry. The audio is analyzed on your phone and is never " +
-                    "saved or uploaded.",
-            )
-        },
-        confirmButton = { Button(onClick = onAllow) { Text("Allow microphone") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Not now") } },
+        title = { Text(stringResource(R.string.mic_rationale_title)) },
+        text = { Text(stringResource(R.string.mic_rationale_body)) },
+        confirmButton = { Button(onClick = onAllow) { Text(stringResource(R.string.mic_rationale_allow)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.not_now)) } },
     )
 }
+
+@Composable
+private fun micErrorMessage(reason: MicErrorReason?, permissionRevoked: Boolean): String = stringResource(
+    when {
+        permissionRevoked -> R.string.mic_error_permission_revoked
+        reason == MicErrorReason.UNSUPPORTED_FORMAT -> R.string.mic_error_unsupported
+        reason == MicErrorReason.OPEN_FAILED -> R.string.mic_error_open_failed
+        reason == MicErrorReason.BUSY -> R.string.mic_error_busy
+        reason == MicErrorReason.STOPPED_RESPONDING -> R.string.mic_error_stopped
+        else -> R.string.mic_error_unknown
+    },
+)
 
 private fun Context.hasMicPermission(): Boolean =
     ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED

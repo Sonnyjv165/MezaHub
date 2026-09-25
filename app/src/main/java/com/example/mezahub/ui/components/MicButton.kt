@@ -23,11 +23,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.example.mezahub.ui.theme.PokedexRed
+import com.example.mezahub.R
+import com.example.mezahub.ui.theme.LocalBallTheme
 
 /**
  * Poké Ball mic button shared by Listen screen states. While [isListening], [micLevel]
@@ -47,6 +49,8 @@ fun MicButton(
         label = "mic-bob",
     )
 
+    val description = stringResource(if (isListening) R.string.cd_stop_listening else R.string.cd_start_listening)
+
     Box(modifier = modifier.size(170.dp), contentAlignment = Alignment.Center) {
         if (isListening) PulsingRing()
         Box(
@@ -55,7 +59,7 @@ fun MicButton(
                 .scale(bobScale)
                 .clip(CircleShape)
                 .clickable(role = Role.Button, onClick = onClick)
-                .semantics { contentDescription = if (isListening) "Stop listening" else "Start listening" },
+                .semantics { contentDescription = description },
             contentAlignment = Alignment.Center,
         ) {
             Pokeball(size = 120.dp)
@@ -89,6 +93,6 @@ private fun PulsingRing() {
             .size(120.dp)
             .scale(scale)
             .alpha(alpha)
-            .background(PokedexRed, CircleShape),
+            .background(LocalBallTheme.current.ball.top, CircleShape),
     )
 }
