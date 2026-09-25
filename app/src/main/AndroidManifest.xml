@@ -11,10 +11,24 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MezaHub"
-        tools:targetApi="31">
+        tools:ignore="UnusedTranslation"
+        tools:targetApi="33">
+        <!-- UnusedTranslation: locales_config uses the modern codes "fil"/"id" (so Android's
+             language picker shows "Filipino"/"Indonesian"); Android maps them onto the legacy
+             resource folders values-tl / values-in, which lint compares literally. -->
+        <!-- Lets AppCompat remember the in-app language choice on Android 12 and below. -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
         <activity
             android:name=".MainActivity"
             android:exported="true">

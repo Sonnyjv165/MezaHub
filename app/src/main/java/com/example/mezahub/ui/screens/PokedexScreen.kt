@@ -2,6 +2,7 @@ package com.example.mezahub.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.mezahub.R
 import com.example.mezahub.data.CardProgress
 import com.example.mezahub.data.PokedexStats
 import com.example.mezahub.data.SpeciesCount
@@ -47,6 +50,7 @@ import com.example.mezahub.data.TierProgress
 import com.example.mezahub.ui.components.PokedexHeader
 import com.example.mezahub.ui.components.PokemonIcon
 import com.example.mezahub.ui.components.formatTimestamp
+import com.example.mezahub.ui.components.quantityString
 import com.example.mezahub.ui.components.StarRow
 import com.example.mezahub.ui.components.tierAccentColor
 import com.example.mezahub.viewmodel.PokedexViewModel
@@ -59,31 +63,60 @@ fun PokedexScreen(modifier: Modifier = Modifier, viewModel: PokedexViewModel = v
     val fullWidth: LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan(maxLineSpan) }
 
     Column(modifier = modifier.fillMaxSize()) {
-        PokedexHeader(title = "Pokédex", subtitle = "${stats.heardCount} of ${stats.totalCards} cards heard")
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 100.dp),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            item(span = fullWidth) { CompletionCard(stats) }
-            if (stats.mostHeard.isNotEmpty()) {
-                item(span = fullWidth) { MostHeardCard(stats.mostHeard) }
-            }
-            item(span = fullWidth) {
-                Text(
-                    text = "All cards",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-            }
-            items(stats.cards, key = { it.entry.tagId }) { card ->
-                CardCell(card = card, onClick = { selected = card })
+        PokedexHeader(
+            title = stringResource(R.string.pokedex_title),
+            subtitle = stringResource(
+                R.string.meta_join,
+                stringResource(R.string.version_label, stats.version),
+                stringResource(R.string.pokedex_subtitle, stats.heardCount, stats.totalCards),
+            ),
+        )
+        if (stats.totalCards == 0) {
+            VersionNotReady(version = stats.version, modifier = Modifier.weight(1f))
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 100.dp),
+                contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item(span = fullWidth) { CompletionCard(stats) }
+                if (stats.mostHeard.isNotEmpty()) {
+                    item(span = fullWidth) { MostHeardCard(stats.mostHeard) }
+                }
+                item(span = fullWidth) {
+                    Text(
+                        text = stringResource(R.string.pokedex_all_cards),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+                items(stats.cards, key = { it.entry.tagId }) { card ->
+                    CardCell(card = card, onClick = { selected = card })
+                }
             }
         }
     }
 
     selected?.let { CardDetailDialog(card = it, onDismiss = { selected = null }) }
+}
+
+/** Shown for a Mezastar version whose card list hasn't been filled in yet. */
+@Composable
+private fun VersionNotReady(version: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.version_empty, version),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 @Composable
@@ -97,7 +130,7 @@ private fun CompletionCard(stats: PokedexStats) {
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = " / ${stats.totalCards} cards heard",
+                    text = " " + stringResource(R.string.pokedex_of_total, stats.totalCards),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
@@ -112,7 +145,7 @@ private fun CompletionCard(stats: PokedexStats) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "${stats.totalDetections} ${if (stats.totalDetections == 1) "cry" else "cries"} identified so far",
+                text = quantityString(R.plurals.pokedex_detections, stats.totalDetections, stats.totalDetections),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -131,7 +164,7 @@ private fun TierProgressRow(progress: TierProgress) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = progress.tier.label,
+            text = stringResource(progress.tier.labelRes),
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.width(84.dp),
         )
@@ -144,7 +177,7 @@ private fun TierProgressRow(progress: TierProgress) {
                 .clip(RoundedCornerShape(4.dp)),
         )
         Text(
-            text = "${progress.heard}/${progress.total}",
+            text = stringResource(R.string.tier_progress, progress.heard, progress.total),
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.End,
             modifier = Modifier.width(44.dp),
@@ -156,12 +189,12 @@ private fun TierProgressRow(progress: TierProgress) {
 private fun MostHeardCard(species: List<SpeciesCount>) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "Most heard", style = MaterialTheme.typography.titleMedium)
+            Text(text = stringResource(R.string.pokedex_most_heard), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(10.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 species.forEach { s ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                        PokemonIcon(tagId = s.iconTagId, speciesName = s.speciesName, tier = s.tier, size = 60.dp)
+                        PokemonIcon(tagId = s.iconTagId, version = s.version, speciesName = s.speciesName, tier = s.tier, size = 60.dp)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = s.speciesName,
@@ -171,7 +204,7 @@ private fun MostHeardCard(species: List<SpeciesCount>) {
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "×${s.count}",
+                            text = stringResource(R.string.times_count, s.count),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -185,15 +218,18 @@ private fun MostHeardCard(species: List<SpeciesCount>) {
 @Composable
 private fun CardCell(card: CardProgress, onClick: () -> Unit) {
     val entry = card.entry
+    val tierLabel = stringResource(entry.tier.labelRes)
+    val description = if (card.heard) {
+        quantityString(R.plurals.cd_card_heard, card.timesHeard, card.timesHeard, entry.speciesName, tierLabel)
+    } else {
+        stringResource(R.string.cd_card_not_heard, entry.speciesName, tierLabel)
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .semantics {
-                contentDescription = "${entry.speciesName}, ${entry.tier.label}, " +
-                    if (card.heard) "heard ${card.timesHeard} times" else "not heard yet"
-            },
+            .semantics { contentDescription = description },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (card.heard) {
@@ -211,6 +247,7 @@ private fun CardCell(card: CardProgress, onClick: () -> Unit) {
         ) {
             PokemonIcon(
                 tagId = entry.tagId,
+                version = entry.version,
                 speciesName = entry.speciesName,
                 tier = entry.tier,
                 size = 60.dp,
@@ -231,7 +268,7 @@ private fun CardCell(card: CardProgress, onClick: () -> Unit) {
             )
             StarRow(count = entry.tier.stars, tint = tierAccentColor(entry.tier), starSize = 9.dp)
             Text(
-                text = if (card.heard) "×${card.timesHeard}" else "—",
+                text = if (card.heard) stringResource(R.string.times_count, card.timesHeard) else "—",
                 style = MaterialTheme.typography.labelSmall,
                 color = if (card.heard) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -249,6 +286,7 @@ private fun CardDetailDialog(card: CardProgress, onDismiss: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 PokemonIcon(
                     tagId = entry.tagId,
+                    version = entry.version,
                     speciesName = entry.speciesName,
                     tier = entry.tier,
                     size = 110.dp,
@@ -256,14 +294,19 @@ private fun CardDetailDialog(card: CardProgress, onDismiss: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 StarRow(count = entry.tier.stars, tint = tierAccentColor(entry.tier), starSize = 16.dp)
-                Text(text = "${entry.tier.label} · Tag ${entry.tagId}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = stringResource(R.string.pokedex_tier_tag, stringResource(entry.tier.labelRes), entry.tagId),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = if (card.heard) {
-                        "Heard ${card.timesHeard} ${if (card.timesHeard == 1) "time" else "times"}" +
-                            (card.lastHeardMillis?.let { " · last on ${formatTimestamp(it)}" } ?: "")
+                        val heard = quantityString(R.plurals.pokedex_heard_times, card.timesHeard, card.timesHeard)
+                        card.lastHeardMillis
+                            ?.let { stringResource(R.string.pokedex_last_heard, heard, formatTimestamp(it)) }
+                            ?: heard
                     } else {
-                        "Not heard yet — keep listening!"
+                        stringResource(R.string.pokedex_not_heard)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -271,6 +314,6 @@ private fun CardDetailDialog(card: CardProgress, onDismiss: () -> Unit) {
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
 }

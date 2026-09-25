@@ -18,13 +18,12 @@ import java.io.IOException
 data class CryMatch(val entry: PokemonCryEntry, val confidencePercent: Int)
 
 /**
- * Holds fingerprints generated from bundled reference clips (assets/cries/<tagId>.wav, 16-bit
- * PCM) and matches captured mic audio against them. Empty (always NO_MATCH) until reference
- * .wav files are added under that folder and the database is (re)built.
+ * Holds fingerprints generated from one Mezastar version's bundled reference clips
+ * (assets/versions/v<N>/cries/<tagId>.wav, 16-bit PCM) and matches captured mic audio against
+ * them. Only one version is indexed at a time — the active one from [AppSettingsRepository];
+ * a version with no clips yet simply has an empty index (always NO_MATCH).
  */
 object CryFingerprintRepository {
-    private const val ASSET_DIR = "cries"
-
     private val _loadedCount = MutableStateFlow(0)
     val loadedCount: StateFlow<Int> = _loadedCount.asStateFlow()
 
@@ -32,23 +31,24 @@ object CryFingerprintRepository {
     // every clip twice; `index` is swapped in atomically once a rebuild finishes.
     private val mutex = Mutex()
     @Volatile private var index: FingerprintIndex = FingerprintIndex.EMPTY
-    @Volatile private var loaded = false
+    /** Version the current [index] was built from; null until the first build. */
+    @Volatile private var indexVersion: MezastarVersion? = null
 
-    /** Builds the index if it hasn't been built yet; suspends until it's ready. */
-    suspend fun ensureLoaded(context: Context) {
-        if (loaded) return
-        mutex.withLock { if (!loaded) rebuildLocked(context) }
+    /** Builds [version]'s index if it isn't the one already loaded; suspends until it's ready. */
+    suspend fun ensureLoaded(context: Context, version: MezastarVersion) {
+        if (indexVersion == version) return
+        mutex.withLock { if (indexVersion != version) rebuildLocked(context, version) }
     }
 
-    suspend fun rebuild(context: Context) {
-        mutex.withLock { rebuildLocked(context) }
+    suspend fun rebuild(context: Context, version: MezastarVersion) {
+        mutex.withLock { rebuildLocked(context, version) }
     }
 
     // Fingerprinting ~70 clips is CPU-heavy — keep it off the main thread.
-    private suspend fun rebuildLocked(context: Context) = withContext(Dispatchers.Default) {
+    private suspend fun rebuildLocked(context: Context, version: MezastarVersion) = withContext(Dispatchers.Default) {
         val assetManager = context.assets
         val files = try {
-            assetManager.list(ASSET_DIR).orEmpty()
+            assetManager.list(version.criesDir).orEmpty()
         } catch (e: IOException) {
             emptyArray()
         }
@@ -56,9 +56,9 @@ object CryFingerprintRepository {
         val references = HashMap<String, List<FingerprintHash>>()
         for (fileName in files) {
             if (!fileName.endsWith(".wav", ignoreCase = true)) continue
-            val entry = PokemonCryCatalog.byTagId(fileName.substringBeforeLast(".")) ?: continue
+            val entry = PokemonCryCatalog.byTagId(version, fileName.substringBeforeLast(".")) ?: continue
             val pcm = try {
-                assetManager.open("$ASSET_DIR/$fileName").use { WavDecoder.decode(it) }
+                assetManager.open("${version.criesDir}/$fileName").use { WavDecoder.decode(it) }
             } catch (e: Exception) {
                 continue // A single bad clip shouldn't take the whole database down.
             }
@@ -67,8 +67,8 @@ object CryFingerprintRepository {
         }
 
         index = FingerprintIndex.build(references)
+        indexVersion = version
         _loadedCount.value = index.size
-        loaded = true
     }
 
     /**
@@ -79,11 +79,12 @@ object CryFingerprintRepository {
      */
     fun match(samples: ShortArray, sampleRate: Int): List<CryMatch> {
         val current = index
+        val version = indexVersion ?: return emptyList()
         if (current.isEmpty()) return emptyList()
         val queryHashes = AudioFingerprinter.generate(samples, sampleRate)
         val minVotes = minMatchVotesFor(SensitivityRepository.sensitivity.value)
         return current.match(queryHashes, minVotes).mapNotNull { match ->
-            PokemonCryCatalog.byTagId(match.tagId)?.let { CryMatch(it, match.confidencePercent) }
+            PokemonCryCatalog.byTagId(version, match.tagId)?.let { CryMatch(it, match.confidencePercent) }
         }
     }
 }

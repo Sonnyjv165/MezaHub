@@ -9,8 +9,8 @@ import org.junit.Test
 class PokedexStatsTest {
 
     private fun card(tagId: String): CryOutcome {
-        val entry = PokemonCryCatalog.byTagId(tagId)!!
-        return CryOutcome(entry.tagId, entry.speciesName, entry.tier, 90)
+        val entry = PokemonCryCatalog.byTagId(MezastarVersion.V3, tagId)!!
+        return CryOutcome(entry.tagId, entry.speciesName, entry.tier, 90, entry.version)
     }
 
     private fun record(time: Long, vararg tagIds: String) =
@@ -59,5 +59,25 @@ class PokedexStatsTest {
         assertEquals(2, top.count)
         assertEquals("1-3-009", top.iconTagId) // Superstar card, the rarest it was heard as.
         assertEquals(listOf("Grimmsnarl", "Treecko"), stats.mostHeard.map { it.speciesName })
+    }
+
+    @Test
+    fun otherVersionsDetectionsAreNotCounted() {
+        val other = DetectionRecord(
+            id = "v4",
+            outcomes = listOf(CryOutcome("1-4-001", "Somebody", StarTier.SUPERSTAR, 90, version = 4)),
+            timestampMillis = 1,
+        )
+        val stats = computePokedexStats(listOf(other, record(2, "1-3-001")), MezastarVersion.V3)
+        assertEquals(1, stats.totalDetections)
+        assertEquals(1, stats.heardCount)
+    }
+
+    @Test
+    fun placeholderVersion_hasNoCards() {
+        val stats = computePokedexStats(emptyList(), MezastarVersion.V1)
+        assertEquals(1, stats.version)
+        assertEquals(0, stats.totalCards)
+        assertTrue(stats.tiers.isEmpty())
     }
 }

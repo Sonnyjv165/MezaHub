@@ -6,9 +6,10 @@ data class CardProgress(val entry: PokemonCryEntry, val timesHeard: Int, val las
 
 data class TierProgress(val tier: StarTier, val heard: Int, val total: Int)
 
-data class SpeciesCount(val speciesName: String, val count: Int, val iconTagId: String, val tier: StarTier)
+data class SpeciesCount(val speciesName: String, val count: Int, val iconTagId: String, val tier: StarTier, val version: Int)
 
 data class PokedexStats(
+    val version: Int,
     val cards: List<CardProgress>,
     val heardCount: Int,
     val totalDetections: Int,
@@ -24,12 +25,16 @@ data class PokedexStats(
  * A detection that tied several cards (one cry shared across tiers) counts as "heard" for every
  * one of them — the cry was genuinely heard, the audio just can't say which card it was. For
  * [PokedexStats.mostHeard] that same detection counts once per species, not once per card.
+ *
+ * Only [version]'s cards and detections are counted — each Mezastar version is its own Pokédex.
  */
 fun computePokedexStats(
-    records: List<DetectionRecord>,
-    catalog: List<PokemonCryEntry> = PokemonCryCatalog.all,
+    allRecords: List<DetectionRecord>,
+    version: MezastarVersion = MezastarVersion.DEFAULT,
     topSpecies: Int = 3,
 ): PokedexStats {
+    val catalog = PokemonCryCatalog.cards(version)
+    val records = allRecords.filter { it.version == version.number }
     val timesHeard = HashMap<String, Int>()
     val lastHeard = HashMap<String, Long>()
     val speciesCounts = HashMap<String, Int>()
@@ -59,9 +64,10 @@ fun computePokedexStats(
     val mostHeard = speciesCounts.entries
         .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
         .take(topSpecies)
-        .map { (species, count) -> speciesIcon.getValue(species).let { SpeciesCount(species, count, it.tagId, it.tier) } }
+        .map { (species, count) -> speciesIcon.getValue(species).let { SpeciesCount(species, count, it.tagId, it.tier, version.number) } }
 
     return PokedexStats(
+        version = version.number,
         cards = cards,
         heardCount = cards.count { it.heard },
         totalDetections = records.size,

@@ -13,4 +13,6 @@ data class CryOutcome(
     val speciesName: String,
     val tier: StarTier,
     val confidencePercent: Int,
+    /** Mezastar version (card set) the card belongs to. */
+    val version: Int,
 )

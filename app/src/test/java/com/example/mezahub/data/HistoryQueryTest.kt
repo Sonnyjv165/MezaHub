@@ -6,7 +6,7 @@ import org.junit.Test
 
 class HistoryQueryTest {
 
-    private fun outcome(name: String, tier: StarTier) = CryOutcome("tag-$name-$tier", name, tier, 90)
+    private fun outcome(name: String, tier: StarTier) = CryOutcome("tag-$name-$tier", name, tier, 90, version = 3)
 
     private val treecko = DetectionRecord("1", listOf(outcome("Treecko", StarTier.TWO)), timestampMillis = 100)
     private val zygarde = DetectionRecord("2", listOf(outcome("Zygarde", StarTier.SUPERSTAR)), timestampMillis = 300)

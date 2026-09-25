@@ -3,9 +3,13 @@ package com.example.mezahub.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mezahub.data.AppLanguage
 import com.example.mezahub.data.AppSettingsRepository
 import com.example.mezahub.data.CryFingerprintRepository
+import com.example.mezahub.data.MezastarVersion
+import com.example.mezahub.data.PokemonCryCatalog
 import com.example.mezahub.data.SensitivityRepository
+import com.example.mezahub.ui.theme.BallTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,10 +27,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _isUpdatingDatabase = MutableStateFlow(false)
     val isUpdatingDatabase: StateFlow<Boolean> = _isUpdatingDatabase.asStateFlow()
 
+    // Declared before init, which reads it: Kotlin runs property initializers and init blocks in order.
+    val activeVersion: StateFlow<MezastarVersion> = AppSettingsRepository.activeVersion
+
     init {
         SensitivityRepository.ensureLoaded(application)
         AppSettingsRepository.ensureLoaded(application)
-        viewModelScope.launch { CryFingerprintRepository.ensureLoaded(application) }
+        viewModelScope.launch { CryFingerprintRepository.ensureLoaded(application, activeVersion.value) }
     }
 
     fun onSensitivityChange(value: Float) {
@@ -37,11 +44,37 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         AppSettingsRepository.setShowConfidence(getApplication(), value)
     }
 
+    val ballTheme: StateFlow<BallTheme> = AppSettingsRepository.ballTheme
+
+    fun onBallThemeChange(theme: BallTheme) {
+        AppSettingsRepository.setBallTheme(getApplication(), theme)
+    }
+
+    /** Cards in each version's catalog; 0 means that version is still a placeholder. */
+    fun cardCount(version: MezastarVersion): Int = PokemonCryCatalog.cards(version).size
+
+    /** Switches the arcade version and re-fingerprints that version's cries (spinner shows meanwhile). */
+    fun onActiveVersionChange(version: MezastarVersion) {
+        if (version == activeVersion.value) return
+        AppSettingsRepository.setActiveVersion(getApplication(), version)
+        updateDatabase()
+    }
+
+    fun currentLanguage(): AppLanguage = AppLanguage.current()
+
+    /** Switches the app language; AppCompat recreates the activity to apply it. */
+    fun onLanguageChange(language: AppLanguage) {
+        if (language != AppLanguage.current()) AppLanguage.apply(language)
+    }
+
     fun updateDatabase() {
         viewModelScope.launch {
             _isUpdatingDatabase.value = true
-            CryFingerprintRepository.rebuild(getApplication())
-            _isUpdatingDatabase.value = false
+            try {
+                CryFingerprintRepository.rebuild(getApplication(), activeVersion.value)
+            } finally {
+                _isUpdatingDatabase.value = false
+            }
         }
     }
 }

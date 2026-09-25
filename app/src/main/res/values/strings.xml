@@ -1,3 +1,189 @@
-<resources>
-    <string name="app_name">MezaHub</string>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">MezaHub</string>
+    <string name="app_tagline">Pokemon Mezastar bonus catch listener for pokemon cries</string>
+
+    <!-- Navigation -->
+    <string name="nav_listen">Listen</string>
+    <string name="nav_history">History</string>
+    <string name="nav_pokedex">Pokédex</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Star tiers -->
+    <string name="tier_superstar">Superstar</string>
+    <string name="tier_star">Star</string>
+    <string name="tier_four">4-Star</string>
+    <string name="tier_three">3-Star</string>
+    <string name="tier_two">2-Star</string>
+    <string name="tier_regular">Regular Tag</string>
+    <string name="badge_superstar">SUPERSTAR</string>
+    <string name="badge_five">5-STAR</string>
+    <string name="badge_four">4-STAR</string>
+    <string name="badge_three">3-STAR</string>
+    <string name="badge_two">2-STAR</string>
+
+    <!-- Common -->
+    <string name="try_again">Try again</string>
+    <string name="open_settings">Open settings</string>
+    <string name="not_now">Not now</string>
+    <string name="close">Close</string>
+    <string name="done">Done</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="undo">Undo</string>
+    <string name="clear">Clear</string>
+    <string name="got_it">Got it</string>
+    <string name="confidence_percent">%1$d%%</string>
+    <string name="confidence_line">%1$d%% confidence</string>
+    <string name="times_count">×%1$d</string>
+
+    <!-- Listen -->
+    <string name="listen_idle_title">Tap the Poké Ball to listen</string>
+    <string name="listen_idle_hint">Hold your phone near the cabinet speaker during the bonus round</string>
+    <string name="listen_listening_title">Listening…</string>
+    <string name="listen_listening_hint">Tap again to stop</string>
+    <string name="listen_processing_title">Who\'s that Pokémon?</string>
+    <string name="listen_processing_hint">Identifying the cry…</string>
+    <string name="listen_result_single">It\'s %1$s!</string>
+    <plurals name="listen_result_multi">
+        <item quantity="one">Could be one of %1$d cards</item>
+        <item quantity="other">Could be one of %1$d cards</item>
+    </plurals>
+    <string name="listen_result_multi_hint">This cry sounds identical across these tags</string>
+    <string name="listen_again">Listen again</string>
+    <string name="tier_with_confidence">%1$s · %2$d%% confidence</string>
+    <string name="outcome_line">%1$s — %2$s</string>
+    <string name="outcome_line_confidence">%1$s — %2$s (%3$d%%)</string>
+    <string name="no_match_title">Hmm… no Pokémon recognized</string>
+    <string name="no_match_hint">Hold your phone closer to the cabinet speaker, or raise Sensitivity in Settings if this keeps happening.</string>
+    <string name="no_match_empty_db">Your cry database is empty, so nothing can be matched yet. Open Settings and tap Update Database.</string>
+    <string name="mic_error_title">Microphone unavailable</string>
+    <string name="mic_error_unsupported">This device doesn\'t support the recording format MezaHub needs.</string>
+    <string name="mic_error_open_failed">Couldn\'t open the microphone. Another app may be using it.</string>
+    <string name="mic_error_busy">The microphone is busy. Close any app that\'s recording (a call, voice assistant, or screen recorder) and try again.</string>
+    <string name="mic_error_stopped">The microphone stopped responding. Please try again.</string>
+    <string name="mic_error_permission_revoked">Microphone access was turned off. Allow it again to keep listening.</string>
+    <string name="mic_error_unknown">Something went wrong while identifying the cry. Please try again.</string>
+    <string name="mic_blocked_title">Microphone access is blocked</string>
+    <string name="mic_blocked_body">MezaHub can\'t hear the cabinet without it. Turn on the microphone permission in system settings.</string>
+    <string name="mic_rationale_title">Let MezaHub hear the cry</string>
+    <string name="mic_rationale_body">When you tap the Poké Ball, MezaHub listens for a few seconds to recognize the cabinet\'s bonus-round cry. The audio is analyzed on your phone and is never saved or uploaded.</string>
+    <string name="mic_rationale_allow">Allow microphone</string>
+    <string name="cd_start_listening">Start listening</string>
+    <string name="cd_stop_listening">Stop listening</string>
+
+    <!-- History -->
+    <string name="history_title">History</string>
+    <plurals name="history_count">
+        <item quantity="one">%1$d cry logged</item>
+        <item quantity="other">%1$d cries logged</item>
+    </plurals>
+    <string name="history_filter">Filter by star tier</string>
+    <string name="history_filter_active">Filter by star tier (active)</string>
+    <string name="history_sorted_newest">Sorted newest first</string>
+    <string name="history_sorted_oldest">Sorted oldest first</string>
+    <string name="history_search_hint">Search by Pokémon name</string>
+    <string name="history_clear_search">Clear search</string>
+    <string name="history_showing">Showing: %1$s</string>
+    <string name="history_empty">No catches yet — hit Listen to identify your first cry!</string>
+    <string name="history_no_results">No catches match your search or filter.</string>
+    <string name="history_delete_title">Delete this record?</string>
+    <string name="history_delete_body">This will remove the %1$s entry from your history.</string>
+    <string name="history_deleted">Deleted %1$s</string>
+    <!-- PluralsCandidate: "+N more" doesn't inflect; card totals are always 73. -->
+    <string name="history_more" tools:ignore="PluralsCandidate">%1$s +%2$d more</string>
+    <string name="history_detail_title">%1$s — possible cards</string>
+    <plurals name="history_detail_body">
+        <item quantity="one">This cry matched %1$d card with identical audio, recorded %2$s.</item>
+        <item quantity="other">This cry matched %1$d cards with identical audio, recorded %2$s.</item>
+    </plurals>
+    <string name="cd_view_possible_cards">View all possible cards</string>
+    <string name="cd_delete_record">Delete this record</string>
+    <string name="filter_title">Filter by star tier</string>
+    <string name="filter_body">Show only catches at these tiers. Leave all unchecked to show everything.</string>
+    <string name="filter_clear">Clear filter</string>
+
+    <!-- Pokédex -->
+    <string name="pokedex_title">Pokédex</string>
+    <string name="pokedex_subtitle" tools:ignore="PluralsCandidate">%1$d of %2$d cards heard</string>
+    <string name="pokedex_of_total" tools:ignore="PluralsCandidate">/ %1$d cards heard</string>
+    <plurals name="pokedex_detections">
+        <item quantity="one">%1$d cry identified so far</item>
+        <item quantity="other">%1$d cries identified so far</item>
+    </plurals>
+    <string name="pokedex_most_heard">Most heard</string>
+    <string name="pokedex_all_cards">All cards</string>
+    <string name="pokedex_tier_tag">%1$s · Tag %2$s</string>
+    <plurals name="pokedex_heard_times">
+        <item quantity="one">Heard %1$d time</item>
+        <item quantity="other">Heard %1$d times</item>
+    </plurals>
+    <string name="pokedex_last_heard">%1$s · last on %2$s</string>
+    <string name="pokedex_not_heard">Not heard yet — keep listening!</string>
+    <plurals name="cd_card_heard">
+        <item quantity="one">%2$s, %3$s, heard %1$d time</item>
+        <item quantity="other">%2$s, %3$s, heard %1$d times</item>
+    </plurals>
+    <string name="cd_card_not_heard">%1$s, %2$s, not heard yet</string>
+    <string name="tier_progress" translatable="false">%1$d/%2$d</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_cry_database">Cry Database</string>
+    <plurals name="settings_cries_loaded">
+        <item quantity="one">%1$d cry loaded</item>
+        <item quantity="other">%1$d cries loaded</item>
+    </plurals>
+    <string name="settings_update_database">Update Database</string>
+    <string name="settings_sensitivity">Sensitivity</string>
+    <string name="cd_sensitivity_help">How to calibrate sensitivity</string>
+    <string name="settings_sensitivity_desc">How aggressively MezaHub tries to match a cry</string>
+    <string name="settings_sensitivity_value">%1$d%% — %2$s</string>
+    <string name="sensitivity_strict">Strict</string>
+    <string name="sensitivity_balanced">Balanced</string>
+    <string name="sensitivity_lenient">Lenient</string>
+    <string name="sensitivity_help_title">Calibrating sensitivity</string>
+    <string name="sensitivity_help_intro">Sensitivity controls how strict cry matching is — it directly changes how many votes a candidate needs to count as a match.</string>
+    <string name="sensitivity_help_strict">• Lower (Strict): needs a cleaner, closer match. Fewer false positives, but may miss quieter or noisier cries.</string>
+    <string name="sensitivity_help_lenient">• Higher (Lenient): matches more readily. Catches faint or noisy cries, but may occasionally misidentify or show more possible outcomes.</string>
+    <string name="sensitivity_help_tip">If you keep getting \"no Pokémon recognized\" in a noisy arcade, try raising sensitivity. If you\'re getting wrong matches, try lowering it.</string>
+    <string name="settings_display">Display</string>
+    <string name="settings_show_confidence">Show match confidence</string>
+    <string name="settings_show_confidence_desc">Show the match confidence percentage next to identified cries</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_desc">Pick a Poké Ball to restyle the app</string>
+    <string name="settings_theme_generation">Generation %1$s</string>
+    <string name="settings_language">Language</string>
+    <string name="language_system">System default</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="about_disclaimer">This application is a fan-made work and it is %1$s associated with Nintendo.</string>
+    <string name="about_disclaimer_not">NOT</string>
+
+    <!-- Poké Ball themes -->
+    <string name="ball_poke">Poké Ball</string>
+    <string name="ball_great">Great Ball</string>
+    <string name="ball_ultra">Ultra Ball</string>
+    <string name="ball_safari">Safari Ball</string>
+    <string name="ball_master">Master Ball</string>
+    <string name="ball_fast">Fast Ball</string>
+    <string name="ball_level">Level Ball</string>
+    <string name="ball_lure">Lure Ball</string>
+    <string name="ball_heavy">Heavy Ball</string>
+    <string name="ball_love">Love Ball</string>
+    <string name="ball_friend">Friend Ball</string>
+    <string name="ball_moon">Moon Ball</string>
+    <string name="ball_sport">Sport Ball</string>
+    <!-- Mezastar versions -->
+    <string name="meta_join" translatable="false">%1$s · %2$s</string>
+    <string name="settings_mezastar_version">Mezastar Version</string>
+    <string name="settings_mezastar_version_desc">Pick the version your arcade cabinet runs. Only that version\'s cards are matched and shown in the Pokédex.</string>
+    <string name="version_label">Version %1$d</string>
+    <string name="version_short">Ver. %1$d</string>
+    <plurals name="version_cards">
+        <item quantity="one">%1$d card</item>
+        <item quantity="other">%1$d cards</item>
+    </plurals>
+    <string name="version_not_ready">Not set up yet</string>
+    <string name="version_empty" tools:ignore="PluralsCandidate">Mezastar Version %1$d isn\'t set up in MezaHub yet, so there are no cards to match. Pick another version in Settings.</string>
+    <string name="listen_active_version">Listening for Mezastar Version %1$d</string>
 </resources>

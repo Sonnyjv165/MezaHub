@@ -1,6 +1,7 @@
 package com.example.mezahub.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -23,7 +24,7 @@ data class RarityStyle(
     @DrawableRes val backgroundImageRes: Int? = null,
     val borderColor: Color,
     val textColor: Color,
-    val label: String,
+    @StringRes val labelRes: Int,
     val iconSize: Dp,
 )
 
@@ -31,7 +32,7 @@ val TWO_STYLE = RarityStyle(
     gradient = Brush.linearGradient(listOf(Color(0xFFFF8A80), Color(0xFFE53935))),
     borderColor = Color(0xFFFFB3AB),
     textColor = Color.White,
-    label = "2-STAR",
+    labelRes = R.string.badge_two,
     iconSize = 90.dp,
 )
 
@@ -39,7 +40,7 @@ val THREE_STYLE = RarityStyle(
     gradient = Brush.linearGradient(listOf(Color(0xFFB3E5FC), Color(0xFF29B6F6))),
     borderColor = Color(0xFFE1F5FE),
     textColor = Color.Black,
-    label = "3-STAR",
+    labelRes = R.string.badge_three,
     iconSize = 94.dp,
 )
 
@@ -47,7 +48,7 @@ val FOUR_STYLE = RarityStyle(
     gradient = Brush.linearGradient(listOf(Color(0xFFFFF59D), Color(0xFFFBC02D))),
     borderColor = Color(0xFFFFF9C4),
     textColor = Color.Black,
-    label = "4-STAR",
+    labelRes = R.string.badge_four,
     iconSize = 98.dp,
 )
 
@@ -55,7 +56,7 @@ val FIVE_STYLE = RarityStyle(
     gradient = Brush.linearGradient(listOf(Color(0xFFFFF3C4), Color(0xFFFFD34E), Color(0xFFE8A317))),
     borderColor = Color(0xFFFFE28A),
     textColor = Color.Black,
-    label = "5-STAR",
+    labelRes = R.string.badge_five,
     iconSize = 104.dp,
 )
 
@@ -63,7 +64,7 @@ val SIX_STYLE = RarityStyle(
     backgroundImageRes = R.drawable.bg_superstar_galaxy,
     borderColor = Color(0xFFB39DDB),
     textColor = Color.White,
-    label = "SUPERSTAR",
+    labelRes = R.string.badge_superstar,
     iconSize = 112.dp,
 )
 
