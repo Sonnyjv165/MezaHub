@@ -67,6 +67,16 @@ val SIX_STYLE = RarityStyle(
     iconSize = 112.dp,
 )
 
+/** Solid accent per tier for small elements (progress bars, chips) where a full style is too much. */
+fun tierAccentColor(tier: StarTier): Color = when (tier) {
+    StarTier.SUPERSTAR -> Color(0xFF7E57C2)
+    StarTier.STAR -> Color(0xFFE8A317)
+    StarTier.FOUR -> Color(0xFFFBC02D)
+    StarTier.THREE -> Color(0xFF29B6F6)
+    StarTier.TWO -> Color(0xFFE53935)
+    StarTier.REGULAR -> Color(0xFF9E9E9E)
+}
+
 /** Highest-tier style present among the outcomes (6 > 5 > 4 > 3 > 2); null for Regular-only. */
 fun rarityStyleFor(outcomes: List<CryOutcome>): RarityStyle? {
     val tiers = outcomes.map { it.tier }.toSet()

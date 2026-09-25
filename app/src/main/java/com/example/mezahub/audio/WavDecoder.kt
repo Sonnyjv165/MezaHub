@@ -8,6 +8,9 @@ data class PcmAudio(val sampleRate: Int, val samples: ShortArray)
 
 /** Minimal 16-bit PCM WAV reader, for decoding bundled reference cry clips. */
 object WavDecoder {
+    private const val FORMAT_PCM = 1
+    private const val FORMAT_EXTENSIBLE = 0xFFFE
+
     fun decode(input: InputStream): PcmAudio {
         val bytes = input.readBytes()
         require(bytes.size > 44) { "File too small to be a valid WAV" }
@@ -17,6 +20,7 @@ object WavDecoder {
         require(String(bytes, 8, 4, Charsets.US_ASCII) == "WAVE") { "Not a WAVE file" }
 
         var pos = 12
+        var audioFormat = FORMAT_PCM
         var sampleRate = 0
         var channels = 1
         var bitsPerSample = 16
@@ -25,10 +29,19 @@ object WavDecoder {
 
         while (pos + 8 <= bytes.size) {
             val chunkId = String(bytes, pos, 4, Charsets.US_ASCII)
-            val chunkSize = buffer.getInt(pos + 4)
             val chunkDataStart = pos + 8
+            // Clamp to what's actually in the file: streamed/truncated WAVs often declare a
+            // bogus (even negative, i.e. > 2GB unsigned) size, which would otherwise read out of
+            // bounds or walk `pos` backwards forever.
+            val declaredSize = buffer.getInt(pos + 4)
+            val chunkSize = if (declaredSize < 0) {
+                bytes.size - chunkDataStart
+            } else {
+                minOf(declaredSize, bytes.size - chunkDataStart)
+            }
             when (chunkId) {
-                "fmt " -> {
+                "fmt " -> if (chunkSize >= 16) {
+                    audioFormat = buffer.getShort(chunkDataStart).toInt() and 0xFFFF
                     channels = buffer.getShort(chunkDataStart + 2).toInt()
                     sampleRate = buffer.getInt(chunkDataStart + 4)
                     bitsPerSample = buffer.getShort(chunkDataStart + 14).toInt()
@@ -42,7 +55,12 @@ object WavDecoder {
         }
 
         require(dataOffset >= 0) { "No data chunk found" }
+        require(audioFormat == FORMAT_PCM || audioFormat == FORMAT_EXTENSIBLE) {
+            "Only uncompressed PCM WAV files are supported (format tag $audioFormat)"
+        }
         require(bitsPerSample == 16) { "Only 16-bit PCM WAV files are supported" }
+        require(sampleRate > 0) { "Invalid sample rate $sampleRate" }
+        require(channels >= 1) { "Invalid channel count $channels" }
 
         val sampleCount = dataSize / 2
         val allSamples = ShortArray(sampleCount)

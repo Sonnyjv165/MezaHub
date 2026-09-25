@@ -1,6 +1,7 @@
 package com.example.mezahub.audio
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioFormat
@@ -13,6 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlin.math.sqrt
+
+/** The mic exists and permission is granted, but it can't be used right now (busy, broken, etc.). */
+class MicUnavailableException(message: String) : Exception(message)
 
 /** Captures short mono PCM clips from the device mic. No fingerprinting happens here. */
 class AudioCapture(private val context: Context) {
@@ -34,43 +38,71 @@ class AudioCapture(private val context: Context) {
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
 
-    /** Records up to [maxDurationMs] of audio, returning early (with what's captured so far)
-     *  if the calling coroutine is cancelled — e.g. the user tapped the mic to stop listening. */
+    /**
+     * Records up to [maxDurationMs] of audio, returning early (with what's captured so far) if the
+     * calling coroutine is cancelled — e.g. the user tapped the mic to stop listening.
+     *
+     * @throws SecurityException if the RECORD_AUDIO permission isn't (or is no longer) granted.
+     * @throws MicUnavailableException if the mic can't be opened or stops delivering audio —
+     *   most often because another app (a call, voice assistant, screen recorder) holds it.
+     */
+    @SuppressLint("MissingPermission") // Checked explicitly on the first line.
     suspend fun captureClip(maxDurationMs: Int): ShortArray {
-        require(hasPermission()) { "RECORD_AUDIO permission not granted" }
+        if (!hasPermission()) throw SecurityException("RECORD_AUDIO permission not granted")
 
         val minBufferSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
         )
-        require(minBufferSize > 0) { "Unable to configure AudioRecord for this device" }
+        if (minBufferSize <= 0) {
+            throw MicUnavailableException("This device doesn't support the recording format MezaHub needs.")
+        }
 
-        val recorder = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
-            SAMPLE_RATE,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-            minBufferSize * 2,
-        )
+        val recorder = try {
+            AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                minBufferSize * 2,
+            )
+        } catch (e: IllegalArgumentException) {
+            throw MicUnavailableException("Couldn't open the microphone.")
+        }
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+            recorder.release()
+            throw MicUnavailableException("Couldn't open the microphone. Another app may be using it.")
+        }
 
         val maxSamples = (SAMPLE_RATE.toLong() * maxDurationMs / 1000L).toInt()
         val output = ShortArray(maxSamples)
         var written = 0
 
         try {
-            recorder.startRecording()
+            try {
+                recorder.startRecording()
+            } catch (e: IllegalStateException) {
+                throw MicUnavailableException("Couldn't start recording. Another app may be using the microphone.")
+            }
+            if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                throw MicUnavailableException(
+                    "The microphone is busy. Close any app that's recording (a call, voice " +
+                        "assistant, or screen recorder) and try again.",
+                )
+            }
             val chunk = ShortArray(minBufferSize)
             while (written < maxSamples && currentCoroutineContext().isActive) {
                 val read = recorder.read(chunk, 0, chunk.size)
-                if (read <= 0) break
+                if (read < 0) throw MicUnavailableException("The microphone stopped responding (error $read).")
+                if (read == 0) break
                 val toCopy = minOf(read, maxSamples - written)
                 System.arraycopy(chunk, 0, output, written, toCopy)
                 written += toCopy
                 _amplitude.value = rmsLevel(chunk, read)
             }
         } finally {
-            recorder.stop()
+            if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop()
             recorder.release()
             _amplitude.value = 0f
         }

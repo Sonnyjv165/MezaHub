@@ -12,15 +12,16 @@ android {
         applicationId = "com.example.mezahub"
         minSdk = 24
         targetSdk = 34
-        versionCode = 9
-        versionName = "2.3"
+        versionCode = 12
+        versionName = "3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

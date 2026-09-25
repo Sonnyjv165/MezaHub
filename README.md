@@ -16,27 +16,37 @@ won. MezaHub records that cry through your phone's microphone, matches it agains
 database of reference cries, and shows you the matching Pokémon (or Pokémon, if a cry is shared
 across multiple star-tier cards) — along with its rarity and how it was actually captured.
 
-The app has three screens:
+The app has four screens, all sharing a Pokédex-style red header:
 
-- **Listen** — tap the Pokéball button to record a few seconds of audio and identify the cry.
-- **History** — every real detection made this session, persisted locally, newest first.
+- **Listen** — tap the Poké Ball to record a few seconds of audio and identify the cry.
+- **History** — every real detection, persisted locally, with search, tier filters, sorting, and
+  undo-able deletes.
+- **Pokédex** — which of the 73 cards you've heard so far, per-tier completion, and your most
+  heard Pokémon.
 - **Settings** — reference-database status/rebuild, a working sensitivity slider (with a
   built-in calibration guide), a confidence-percentage display toggle, and app/version info.
 
 ## How the Listen flow works
 
-The Listen screen is driven by a 5-state flow:
+The Listen screen is driven by a 6-state flow:
 
 | State | What's shown |
 |---|---|
-| `IDLE` | Pokéball mic button, "Tap to Listen" |
-| `LISTENING` | Button pulses and bobs in real time with the mic's input volume |
-| `PROCESSING` | Spinner while the captured clip is fingerprinted and matched |
-| `RESULT` | A card with the matched Pokémon, its star tier, and a bounce-in animation |
-| `NO_MATCH` | Friendly empty state with a retry tip |
+| `IDLE` | Poké Ball mic button, "Tap the Poké Ball to listen" |
+| `LISTENING` | Ball pulses and bobs in real time with the mic's input volume |
+| `PROCESSING` | "Who's that Pokémon?" with a Poké Ball wobbling like it's mid-catch |
+| `RESULT` | "It's Zygarde!" card with its star tier, a bounce-in animation, and a haptic buzz (a double buzz for Superstars) |
+| `NO_MATCH` | Friendly empty state with a retry tip (and a pointer to Settings if the cry database is empty) |
+| `MIC_ERROR` | The mic couldn't be used (e.g. another app is recording) — explains why, with a retry |
 
-Tapping the mic again while `LISTENING` cancels the capture early. A capture runs for up to 4
-seconds (`CAPTURE_DURATION_MS` in `ListenViewModel`) unless cancelled sooner.
+Tapping the mic again while `LISTENING` cancels the capture early, as does leaving the app. A
+capture runs for up to 4 seconds (`CAPTURE_DURATION_MS` in `ListenViewModel`) unless cancelled
+sooner.
+
+**Microphone permission.** Before the first system prompt, a short explanation says why the mic
+is needed (audio is analyzed on the phone and never saved or uploaded — the app has no internet
+permission at all). If the permission is permanently denied, an "Open settings" banner replaces
+the dead end, and the screen re-checks the permission when you come back.
 
 ### Result card rarity styling
 
@@ -86,9 +96,11 @@ self-contained, Shazam-style **acoustic fingerprinting** pipeline written from s
    packed into a single hash. This is the same "constellation" trick Shazam popularized: it's
    robust to background noise because it only cares about *relative* peak positions, not exact
    loudness.
-6. **Reference index** (`data/CryFingerprintRepository.kt`) — on first use (or when you tap
-   **Update Database** in Settings), every `.wav` file in `assets/cries/` is fingerprinted and
-   folded into an in-memory inverted index: hash → list of (card tag ID, frame position).
+6. **Reference index** (`data/CryFingerprintRepository.kt` + `audio/fingerprint/FingerprintIndex.kt`)
+   — on first use (or when you tap **Update Database** in Settings), every `.wav` file in
+   `assets/cries/` is fingerprinted on a background thread and folded into an in-memory inverted
+   index: hash → list of (card tag ID, frame position). Rebuilds are serialized, and a capture
+   waits for the index to finish loading rather than matching against an empty one.
 7. **Matching** — the live clip is fingerprinted the same way, then every one of its hashes is
    looked up in the index. Each (candidate tag ID, time offset) pair gets a vote; a real match
    produces a sharp spike of votes at one consistent offset (because the whole clip aligns),
@@ -104,7 +116,7 @@ Unlike the other knobs below, matching strictness is a real Settings feature, no
 code-level constant: the **Sensitivity** slider on the Settings screen linearly scales the
 minimum-vote threshold from `MIN_VOTES_STRICT = 16` (slider at 0%, hardest to fool) down to
 `MIN_VOTES_LENIENT = 4` (slider at 100%, catches faint/noisy cries more readily) — see
-`CryFingerprintRepository.currentMinMatchVotes()`. The value is shared instantly between the
+`minMatchVotesFor()` in `audio/fingerprint/FingerprintIndex.kt`. The value is shared instantly between the
 Listen and Settings screens (`data/SensitivityRepository.kt`) and persisted via
 `SharedPreferences`, so it survives app restarts and takes effect on the very next capture with
 no rebuild needed. A **?** icon next to the slider opens an in-app guide explaining what each
@@ -120,11 +132,11 @@ available for anyone who wants to see it (e.g. while tuning sensitivity).
 If matching feels too strict or too loose against real arcade audio even at the slider's
 extremes, these are the remaining hardcoded constants to adjust:
 
-- `MIN_VOTES_STRICT` / `MIN_VOTES_LENIENT` (`CryFingerprintRepository.kt`) — the endpoints the
-  Sensitivity slider interpolates between; widen or narrow this range to change how much the
-  slider actually does.
-- The `0.9` tie-tolerance multiplier in the same file — how close two candidates' vote counts
-  need to be to both count as "tied."
+- `MIN_VOTES_STRICT` / `MIN_VOTES_LENIENT` (`audio/fingerprint/FingerprintIndex.kt`) — the
+  endpoints the Sensitivity slider interpolates between; widen or narrow this range to change how
+  much the slider actually does.
+- `TIE_TOLERANCE = 0.9` in the same file — how close two candidates' vote counts need to be to
+  both count as "tied."
 - `AMPLITUDE_GAIN` (`AudioCapture.kt`) — cosmetic only; affects how energetically the mic button
   bobs, not matching accuracy.
 - `CAPTURE_DURATION_MS` (`ListenViewModel.kt`) — how long a capture runs before auto-stopping.
@@ -135,8 +147,9 @@ arcade cabinet) will always outperform lower-quality or mismatched-source refere
 
 ## The card catalog
 
-`data/PokemonCryCatalog.kt` hardcodes all 73 MezaStar cry cards across 70 species, keyed by the
-game's real tag IDs (e.g. `1-3-011`, `R-1-1`). A few things worth knowing:
+`data/PokemonCryCatalog.kt` hardcodes all 73 MezaStar cry cards (70 numbered + 3 regular tags)
+across 65 species, keyed by the game's real tag IDs (e.g. `1-3-011`, `R-1-1`). A few things worth
+knowing:
 
 - The 2★/3★/4★ block (`1-3-026`–`1-3-070`) is **not** grouped by tier in the real numbering —
   it's interleaved by evolution line (each stage of a line gets consecutive IDs), so tier is
@@ -146,14 +159,53 @@ game's real tag IDs (e.g. `1-3-011`, `R-1-1`). A few things worth knowing:
   Coalossal, Haxorus, Grimmsnarl, Pikachu) — `tagId`, not species name, is always the unique key.
 - Reference audio and card art live in `assets/cries/<tagId>.wav` and `assets/icons/<tagId>.png`
   respectively — a missing file just means that card can't be matched/won't have art yet, it
-  doesn't break anything else.
+  doesn't break anything else. Cries are stored as 22050 Hz mono, the rate the fingerprinter
+  works at anyway (see `assets/cries/README.md`).
 
 ## History & persistence
 
 Every real detection is logged to `data/DetectionHistoryRepository.kt`, which persists to a flat
 JSON file in the app's private storage (`filesDir/detection_history.json`) — no database, just
-enough to survive app restarts at this scale. Each entry can be deleted individually via a
-confirmation dialog (no accidental swipe-deletes).
+enough to survive app restarts at this scale. Saves go to a temp file that's then renamed over
+the real one, so a crash mid-save can't corrupt it; if the file is ever unreadable anyway, it's
+set aside as `detection_history.json.corrupt-<time>` instead of being overwritten.
+
+Each entry can be deleted via a confirmation dialog, followed by an **Undo** snackbar. The list
+can be searched by Pokémon name, sorted newest/oldest first via the arrow in the header, and
+filtered to specific star tiers via the filter icon — a checkbox dialog lets you pick any
+combination (e.g. 6★ only, or 5★ + 3★ together); leaving everything unchecked shows all tiers.
+Search, sort, and filter are session-only — History always opens newest-first and unfiltered.
+
+## Pokédex
+
+The Pokédex tab (`ui/screens/PokedexScreen.kt`, stats in `data/PokedexStats.kt`) turns your
+history into collection progress: how many of the 73 cards you've heard, completion per tier,
+your top three most heard species, and a grid of every card — unheard cards are shown in
+greyscale. Tap any card for its tier, tag ID, times heard, and when you last heard it.
+
+When a detection tied several cards (one cry shared across tiers), every one of those cards
+counts as heard, since that cry genuinely was heard. For "most heard", that detection counts once
+per species.
+
+## Testing & CI
+
+Unit tests live in `app/src/test` and run on the JVM with no device needed:
+
+```
+./gradlew testDebugUnitTest
+```
+
+They cover the FFT, WAV decoding (including malformed files), fingerprint matching (self-match,
+starting mid-clip, background noise, 44.1 kHz mic audio against 22.05 kHz references, tied
+duplicate cries, silence, thresholds), catalog integrity (73 cards, unique tag IDs, tier
+counts), History search/filter/sort, and Pokédex stats. Synthetic tone "melodies" stand in for
+real cries, so the tests don't depend on the bundled audio.
+
+`.github/workflows/android.yml` runs the unit tests, Android lint, and a debug build on every
+push and pull request to `main`, and uploads the reports and debug APK as build artifacts.
+
+Release builds are shrunk with R8 (`isMinifyEnabled` + `isShrinkResources`); line numbers are
+kept so release crash traces stay readable.
 
 ## Tech stack
 
@@ -161,10 +213,63 @@ confirmation dialog (no accidental swipe-deletes).
 - MVVM: `AndroidViewModel` + `StateFlow`, `Navigation-Compose` bottom bar
 - `AudioRecord` for capture, a hand-rolled FFT/fingerprinting pipeline for matching — no external
   audio/DSP/ML dependency
-- Local-only persistence (JSON file for history, in-memory fingerprint index rebuilt from
-  bundled assets)
+- Local-only persistence (JSON file for history, `SharedPreferences` for settings, in-memory
+  fingerprint index rebuilt from bundled assets); no network access
+- JUnit unit tests, Android lint, and GitHub Actions CI; R8-shrunk release builds
 
 ## Changelog
+
+### 3.0 — Reliability, Pokédex, and a Pokémon-themed redesign
+**Reliability**
+- Fixed an app crash when the microphone is busy (a call, voice assistant, or screen recorder
+  holding it): there's now a "Microphone unavailable" screen with the reason and a retry.
+- Fixed a dead end when mic permission is permanently denied: an "Open settings" banner appears,
+  and the permission is re-checked on return. A short explanation now shows before the first
+  system prompt.
+- Loading the cry database (fingerprinting ~70 clips) no longer runs on the main thread, and
+  concurrent loads from different screens no longer duplicate the work.
+- Tapping Listen right after launch no longer gives a false "no match" while the database is
+  still loading.
+- History saves are now atomic, a corrupt history file is set aside instead of silently
+  overwritten, and simultaneous saves can't drop an entry.
+- WAV loading now handles bogus/negative chunk sizes (previously could loop forever) and rejects
+  non-PCM files instead of misreading them.
+- Card-art icons are decoded at display size: a full Pokédex went from ~100 MB of bitmaps to
+  ~32 MB.
+- Listening stops automatically if you leave the app mid-capture.
+- Settings now scrolls, so the About section is no longer cut off on small screens.
+
+**New**
+- **Pokédex** tab: collection progress across all 73 cards, per-tier completion, most heard
+  species, and a greyscale-until-heard card grid with per-card details.
+- History: search by Pokémon name, and an **Undo** snackbar after deleting.
+- Haptic feedback on a match (a double buzz for Superstars).
+- Tied results are now listed highest tier first.
+
+**Pokémon-themed redesign**
+- New Pokédex-red / Pokémon-yellow color scheme. Android 12+ wallpaper-based dynamic color is
+  now off, since it was overriding the app's branding.
+- Classic Pokédex header (blue lens and indicator lights) on every screen.
+- The mic button is now a proper drawn Poké Ball; "identifying" shows "Who's that Pokémon?" with
+  a wobbling Poké Ball; results announce "It's <Pokémon>!"; a faint Poké Ball watermark sits
+  behind the Listen screen.
+
+**Housekeeping**
+- 40 unit tests covering the audio pipeline, matching, catalog, History, and Pokédex logic.
+- GitHub Actions CI (tests + lint + debug build).
+- R8 code and resource shrinking for release builds.
+- Bundled cries converted from 44.1 kHz stereo to 22050 Hz mono: 24 MB → 6 MB, verified to give
+  byte-identical fingerprints. Release APK is now ~15 MB.
+- Corrected the documented species count from 70 to 65 (70 is the count of numbered cards).
+
+### 2.5
+- Replaced the "sort by star rating" option with a proper multi-select **tier filter**:
+  checkboxes let you show any combination of star tiers at once (e.g. 6★ only, or 5★ + 3★
+  together) instead of just reordering the list by rating.
+
+### 2.4
+- Added sorting to Detection History (newest/oldest first) via a new control next to the
+  History heading.
 
 ### 2.3
 - Brought back the match confidence percentage as an opt-in **Show match confidence** toggle in
@@ -221,7 +326,7 @@ confirmation dialog (no accidental swipe-deletes).
   Navigation-Compose bottom bar navigation and Material 3 theming.
 - Real microphone capture (`AudioRecord`) and a from-scratch Shazam-style audio fingerprinting
   engine (FFT, spectrogram peak-picking, constellation hashing) for cry matching.
-- Full 73-card MezaStar catalog across 70 species, keyed by real in-game tag IDs, with reference
+- Full 73-card MezaStar catalog across 65 species, keyed by real in-game tag IDs, with reference
   cry audio and card art loaded from bundled app assets.
 - Tie-aware matching: cards that share identical reference audio across star tiers are all
   surfaced as possible outcomes instead of guessing one.

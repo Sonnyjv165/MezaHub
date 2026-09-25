@@ -1,6 +1,7 @@
 package com.example.mezahub.navigation
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CatchingPokemon
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
@@ -13,5 +14,6 @@ enum class MezaDestination(
 ) {
     LISTEN(route = "listen", label = "Listen", icon = Icons.Filled.Mic),
     HISTORY(route = "history", label = "History", icon = Icons.Filled.History),
+    POKEDEX(route = "pokedex", label = "Pokédex", icon = Icons.Filled.CatchingPokemon),
     SETTINGS(route = "settings", label = "Settings", icon = Icons.Filled.Settings),
 }
