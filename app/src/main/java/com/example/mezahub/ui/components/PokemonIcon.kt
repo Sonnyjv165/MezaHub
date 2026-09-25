@@ -15,8 +15,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +39,7 @@ fun PokemonIcon(
     tier: StarTier,
     modifier: Modifier = Modifier,
     size: Dp = 72.dp,
+    desaturated: Boolean = false,
 ) {
     val context = LocalContext.current
     var bitmap by remember(tagId) { mutableStateOf<ImageBitmap?>(null) }
@@ -49,11 +53,23 @@ fun PokemonIcon(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (current == null) tierColor(tier) else Color.Transparent),
+            .background(
+                when {
+                    current != null -> Color.Transparent
+                    desaturated -> Color(0xFF8A8A8A)
+                    else -> tierColor(tier)
+                },
+            )
+            .alpha(if (desaturated) 0.45f else 1f),
         contentAlignment = Alignment.Center,
     ) {
         if (current != null) {
-            Image(bitmap = current, contentDescription = speciesName, modifier = Modifier.size(size))
+            Image(
+                bitmap = current,
+                contentDescription = speciesName,
+                modifier = Modifier.size(size),
+                colorFilter = if (desaturated) GREYSCALE else null,
+            )
         } else {
             Text(
                 text = speciesName.take(1).uppercase(),
@@ -64,6 +80,8 @@ fun PokemonIcon(
         }
     }
 }
+
+private val GREYSCALE = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
 
 private fun tierColor(tier: StarTier): Color = when (tier) {
     StarTier.SUPERSTAR -> Color(0xFF3B2E6B)

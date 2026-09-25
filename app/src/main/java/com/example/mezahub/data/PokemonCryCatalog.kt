@@ -1,8 +1,8 @@
 package com.example.mezahub.data
  
 /**
- * Static catalog of all 73 MezaStar cry cards across 70 species, keyed by the real game tag
- * IDs (e.g. "1-3-001", "R-1-1"). The 2/3/4-star block (1-3-026 through 1-3-070) is NOT grouped
+ * Static catalog of all 73 MezaStar cry cards (70 numbered + 3 regular tags) across 65 species,
+ * keyed by the real game tag IDs (e.g. "1-3-001", "R-1-1"). The 2/3/4-star block (1-3-026 through 1-3-070) is NOT grouped
  * by tier in the real numbering — it's interleaved by evolution line (base -> middle -> final
  * each get their own consecutive IDs), so tier here is taken from the card list directly rather
  * than derived from the ID or the Pokedex evolution chain. Several species recur as distinct

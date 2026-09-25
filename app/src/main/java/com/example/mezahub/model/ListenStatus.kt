@@ -6,4 +6,5 @@ enum class ListenStatus {
     PROCESSING,
     RESULT,
     NO_MATCH,
+    MIC_ERROR,
 }

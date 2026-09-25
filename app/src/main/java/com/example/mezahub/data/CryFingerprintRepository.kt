@@ -3,16 +3,19 @@ package com.example.mezahub.data
 import android.content.Context
 import com.example.mezahub.audio.WavDecoder
 import com.example.mezahub.audio.fingerprint.AudioFingerprinter
+import com.example.mezahub.audio.fingerprint.FingerprintHash
+import com.example.mezahub.audio.fingerprint.FingerprintIndex
+import com.example.mezahub.audio.fingerprint.minMatchVotesFor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.IOException
-import kotlin.math.min
-import kotlin.math.roundToInt
 
 data class CryMatch(val entry: PokemonCryEntry, val confidencePercent: Int)
-
-private data class IndexEntry(val tagId: String, val frameIndex: Int)
 
 /**
  * Holds fingerprints generated from bundled reference clips (assets/cries/<tagId>.wav, 16-bit
@@ -22,23 +25,27 @@ private data class IndexEntry(val tagId: String, val frameIndex: Int)
 object CryFingerprintRepository {
     private const val ASSET_DIR = "cries"
 
-    // Vote-count threshold to count as a match, scaled by the user's sensitivity setting:
-    // strictest (sensitivity 0) needs a much cleaner match than most lenient (sensitivity 1).
-    private const val MIN_VOTES_STRICT = 16
-    private const val MIN_VOTES_LENIENT = 4
-
     private val _loadedCount = MutableStateFlow(0)
     val loadedCount: StateFlow<Int> = _loadedCount.asStateFlow()
 
-    private var index: Map<Long, List<IndexEntry>> = emptyMap()
-    private var referenceHashCounts: Map<String, Int> = emptyMap()
-    private var loaded = false
+    // Rebuilds are serialized so Listen and Settings starting up together don't fingerprint
+    // every clip twice; `index` is swapped in atomically once a rebuild finishes.
+    private val mutex = Mutex()
+    @Volatile private var index: FingerprintIndex = FingerprintIndex.EMPTY
+    @Volatile private var loaded = false
 
+    /** Builds the index if it hasn't been built yet; suspends until it's ready. */
     suspend fun ensureLoaded(context: Context) {
-        if (!loaded) rebuild(context)
+        if (loaded) return
+        mutex.withLock { if (!loaded) rebuildLocked(context) }
     }
 
     suspend fun rebuild(context: Context) {
+        mutex.withLock { rebuildLocked(context) }
+    }
+
+    // Fingerprinting ~70 clips is CPU-heavy — keep it off the main thread.
+    private suspend fun rebuildLocked(context: Context) = withContext(Dispatchers.Default) {
         val assetManager = context.assets
         val files = try {
             assetManager.list(ASSET_DIR).orEmpty()
@@ -46,79 +53,37 @@ object CryFingerprintRepository {
             emptyArray()
         }
 
-        val newIndex = mutableMapOf<Long, MutableList<IndexEntry>>()
-        val hashCounts = mutableMapOf<String, Int>()
-        var count = 0
-
+        val references = HashMap<String, List<FingerprintHash>>()
         for (fileName in files) {
             if (!fileName.endsWith(".wav", ignoreCase = true)) continue
-            val tagId = fileName.substringBeforeLast(".")
-            val entry = PokemonCryCatalog.byTagId(tagId) ?: continue
+            val entry = PokemonCryCatalog.byTagId(fileName.substringBeforeLast(".")) ?: continue
             val pcm = try {
                 assetManager.open("$ASSET_DIR/$fileName").use { WavDecoder.decode(it) }
             } catch (e: Exception) {
-                continue
+                continue // A single bad clip shouldn't take the whole database down.
             }
             val hashes = AudioFingerprinter.generate(pcm.samples, pcm.sampleRate)
-            if (hashes.isEmpty()) continue
-            for (h in hashes) {
-                newIndex.getOrPut(h.hash) { mutableListOf() } += IndexEntry(entry.tagId, h.frameIndex)
-            }
-            hashCounts[entry.tagId] = hashes.size
-            count++
+            if (hashes.isNotEmpty()) references[entry.tagId] = hashes
         }
 
-        index = newIndex
-        referenceHashCounts = hashCounts
-        _loadedCount.value = count
+        index = FingerprintIndex.build(references)
+        _loadedCount.value = index.size
         loaded = true
     }
 
     /**
-     * Returns every tag whose vote count is at (or near) the best score, not just the single
-     * top scorer. Several cards reuse the same cry across star tiers (Sceptile at both 4-star
-     * and 5-star, Pikachu as both a regular tag and a 5-star card, etc.) — when the same
-     * reference clip is bundled under more than one tagId, those tagIds tie almost exactly, and
-     * the audio alone genuinely can't tell them apart, so callers should present all of them as
-     * possible outcomes rather than picking one arbitrarily.
+     * Returns every card whose score is at (or near) the best, not just the single top scorer.
+     * Several cards reuse the same cry across star tiers (Sceptile at both 4-star and 5-star,
+     * Pikachu as both a regular tag and a 5-star card, etc.) — the audio alone genuinely can't
+     * tell them apart, so callers should present all of them as possible outcomes.
      */
     fun match(samples: ShortArray, sampleRate: Int): List<CryMatch> {
+        val current = index
+        if (current.isEmpty()) return emptyList()
         val queryHashes = AudioFingerprinter.generate(samples, sampleRate)
-        if (queryHashes.isEmpty() || index.isEmpty()) return emptyList()
-
-        val votes = mutableMapOf<Pair<String, Int>, Int>()
-        for (q in queryHashes) {
-            val candidates = index[q.hash] ?: continue
-            for (c in candidates) {
-                val offset = c.frameIndex - q.frameIndex
-                val key = c.tagId to offset
-                votes[key] = (votes[key] ?: 0) + 1
-            }
+        val minVotes = minMatchVotesFor(SensitivityRepository.sensitivity.value)
+        return current.match(queryHashes, minVotes).mapNotNull { match ->
+            PokemonCryCatalog.byTagId(match.tagId)?.let { CryMatch(it, match.confidencePercent) }
         }
-
-        val minMatchVotes = currentMinMatchVotes()
-        val maxVotes = votes.values.maxOrNull() ?: return emptyList()
-        if (maxVotes < minMatchVotes) return emptyList()
-
-        val tieThreshold = (maxVotes * 0.9).toInt().coerceAtLeast(minMatchVotes)
-        val bestVotesByTag = mutableMapOf<String, Int>()
-        for ((key, voteCount) in votes) {
-            if (voteCount < tieThreshold) continue
-            val tagId = key.first
-            if (voteCount > (bestVotesByTag[tagId] ?: 0)) bestVotesByTag[tagId] = voteCount
-        }
-
-        return bestVotesByTag.mapNotNull { (tagId, voteCount) ->
-            val entry = PokemonCryCatalog.byTagId(tagId) ?: return@mapNotNull null
-            val referenceSize = referenceHashCounts[tagId] ?: queryHashes.size
-            val denominator = min(queryHashes.size, referenceSize).coerceAtLeast(1)
-            val confidence = (voteCount * 100 / denominator).coerceIn(1, 99)
-            CryMatch(entry, confidence)
-        }.sortedByDescending { it.confidencePercent }
-    }
-
-    private fun currentMinMatchVotes(): Int {
-        val sensitivity = SensitivityRepository.sensitivity.value.coerceIn(0f, 1f)
-        return (MIN_VOTES_STRICT - sensitivity * (MIN_VOTES_STRICT - MIN_VOTES_LENIENT)).roundToInt()
     }
 }

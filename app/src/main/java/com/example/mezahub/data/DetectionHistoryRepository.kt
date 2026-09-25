@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -29,24 +31,41 @@ object DetectionHistoryRepository {
     private val _records = MutableStateFlow<List<DetectionRecord>>(emptyList())
     val records: StateFlow<List<DetectionRecord>> = _records.asStateFlow()
 
-    private var loaded = false
+    // Serializes load/modify/save so a detection landing while History is deleting (or
+    // loading) can't interleave and drop one of the writes.
+    private val mutex = Mutex()
+    @Volatile private var loaded = false
 
     suspend fun ensureLoaded(context: Context) {
         if (loaded) return
-        _records.value = withContext(Dispatchers.IO) { readFromDisk(context) }
-        loaded = true
+        mutex.withLock { ensureLoadedLocked(context) }
     }
 
-    suspend fun record(context: Context, outcomes: List<CryOutcome>) {
-        ensureLoaded(context)
+    suspend fun record(context: Context, outcomes: List<CryOutcome>) = mutex.withLock {
+        ensureLoadedLocked(context)
         _records.value = listOf(DetectionRecord(outcomes = outcomes)) + _records.value
         persist(context)
     }
 
-    suspend fun remove(context: Context, id: String) {
-        ensureLoaded(context)
+    suspend fun remove(context: Context, id: String) = mutex.withLock {
+        ensureLoadedLocked(context)
         _records.value = _records.value.filterNot { it.id == id }
         persist(context)
+    }
+
+    /** Puts a previously removed record back in its original chronological position (Undo). */
+    suspend fun restore(context: Context, record: DetectionRecord) = mutex.withLock {
+        ensureLoadedLocked(context)
+        if (_records.value.none { it.id == record.id }) {
+            _records.value = (_records.value + record).sortedByDescending { it.timestampMillis }
+            persist(context)
+        }
+    }
+
+    private suspend fun ensureLoadedLocked(context: Context) {
+        if (loaded) return
+        _records.value = withContext(Dispatchers.IO) { readFromDisk(context) }
+        loaded = true
     }
 
     private suspend fun persist(context: Context) {
@@ -60,6 +79,9 @@ object DetectionHistoryRepository {
             val array = JSONArray(file.readText())
             (0 until array.length()).mapNotNull { i -> parseRecord(array.optJSONObject(i)) }
         } catch (e: Exception) {
+            // Keep the unreadable file around instead of letting the next save overwrite it,
+            // so a corrupt history is recoverable rather than silently wiped.
+            file.renameTo(File(context.filesDir, "$FILE_NAME.corrupt-${System.currentTimeMillis()}"))
             emptyList()
         }
     }
@@ -114,7 +136,10 @@ object DetectionHistoryRepository {
             )
         }
         try {
-            File(context.filesDir, FILE_NAME).writeText(array.toString())
+            // Write-then-rename so a crash or power loss mid-save can't leave a half-written file.
+            val tmp = File(context.filesDir, "$FILE_NAME.tmp")
+            tmp.writeText(array.toString())
+            if (!tmp.renameTo(File(context.filesDir, FILE_NAME))) tmp.delete()
         } catch (e: Exception) {
             // Best-effort persistence — a failed write just means this change isn't saved.
         }
