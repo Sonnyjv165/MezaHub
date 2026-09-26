@@ -3,7 +3,9 @@ package com.example.mezahub.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,8 +14,8 @@ import java.util.Collections
 
 /**
  * Loads card icons from assets/versions/v<N>/icons/<tagId>.{png,webp,jpg} — same drop-in
- * workflow as the cry clips under assets/versions/v<N>/cries/. A tagId with no matching file simply has no icon; callers
- * should fall back to a placeholder rather than treat a miss as an error.
+ * workflow as the cry clips under assets/versions/v<N>/cries/. A tagId with no matching file
+ * simply has no icon; callers should fall back to a placeholder rather than treat a miss as an error.
  */
 object PokemonIconRepository {
     private val EXTENSIONS = listOf("png", "webp", "jpg")
@@ -22,15 +24,20 @@ object PokemonIconRepository {
     // would cost ~100MB for the whole catalog, so decode down to roughly display size instead.
     private const val MAX_DECODE_PX = 384
 
-    // Synchronized (not Concurrent) because a cached miss is stored as null.
-    private val cache: MutableMap<String, ImageBitmap?> = Collections.synchronizedMap(HashMap())
+    // A full catalog is ~32MB of decoded icons per version, so keep only the most recently shown
+    // ones: an eighth of the app's memory budget, measured in KB. Evicted icons are re-decoded.
+    private val cache = object : LruCache<String, ImageBitmap>((Runtime.getRuntime().maxMemory() / 8 / 1024).toInt()) {
+        override fun sizeOf(key: String, value: ImageBitmap): Int = value.asAndroidBitmap().allocationByteCount / 1024
+    }
+
+    // Tags with no icon file, so a miss isn't re-probed for every extension each time.
+    private val missing: MutableSet<String> = Collections.synchronizedSet(HashSet())
 
     suspend fun load(context: Context, version: Int, tagId: String): ImageBitmap? {
         // Keyed by version too: regular tags like "R-1-1" can reappear in several versions.
         val key = "$version/$tagId"
-        synchronized(cache) {
-            if (cache.containsKey(key)) return cache[key]
-        }
+        cache.get(key)?.let { return it }
+        if (key in missing) return null
         val iconsDir = MezastarVersion.fromNumber(version).iconsDir
 
         val bitmap = withContext(Dispatchers.IO) {
@@ -45,7 +52,7 @@ object PokemonIconRepository {
             null
         }
 
-        cache[key] = bitmap
+        if (bitmap != null) cache.put(key, bitmap) else missing += key
         return bitmap
     }
 

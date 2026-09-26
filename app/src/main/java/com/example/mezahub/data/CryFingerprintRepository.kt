@@ -27,17 +27,18 @@ object CryFingerprintRepository {
     private val _loadedCount = MutableStateFlow(0)
     val loadedCount: StateFlow<Int> = _loadedCount.asStateFlow()
 
+    /** An index together with the version it was built from, so the two can never be read out of step. */
+    private class LoadedIndex(val version: MezastarVersion, val index: FingerprintIndex)
+
     // Rebuilds are serialized so Listen and Settings starting up together don't fingerprint
-    // every clip twice; `index` is swapped in atomically once a rebuild finishes.
+    // every clip twice; `loaded` is swapped in as one object once a rebuild finishes.
     private val mutex = Mutex()
-    @Volatile private var index: FingerprintIndex = FingerprintIndex.EMPTY
-    /** Version the current [index] was built from; null until the first build. */
-    @Volatile private var indexVersion: MezastarVersion? = null
+    @Volatile private var loaded: LoadedIndex? = null
 
     /** Builds [version]'s index if it isn't the one already loaded; suspends until it's ready. */
     suspend fun ensureLoaded(context: Context, version: MezastarVersion) {
-        if (indexVersion == version) return
-        mutex.withLock { if (indexVersion != version) rebuildLocked(context, version) }
+        if (loaded?.version == version) return
+        mutex.withLock { if (loaded?.version != version) rebuildLocked(context, version) }
     }
 
     suspend fun rebuild(context: Context, version: MezastarVersion) {
@@ -66,9 +67,9 @@ object CryFingerprintRepository {
             if (hashes.isNotEmpty()) references[entry.tagId] = hashes
         }
 
-        index = FingerprintIndex.build(references)
-        indexVersion = version
-        _loadedCount.value = index.size
+        val built = LoadedIndex(version, FingerprintIndex.build(references))
+        loaded = built
+        _loadedCount.value = built.index.size
     }
 
     /**
@@ -78,13 +79,13 @@ object CryFingerprintRepository {
      * tell them apart, so callers should present all of them as possible outcomes.
      */
     fun match(samples: ShortArray, sampleRate: Int): List<CryMatch> {
-        val current = index
-        val version = indexVersion ?: return emptyList()
-        if (current.isEmpty()) return emptyList()
+        // Read once: a version switch mid-match must not pair one version's index with the other's catalog.
+        val current = loaded ?: return emptyList()
+        if (current.index.isEmpty()) return emptyList()
         val queryHashes = AudioFingerprinter.generate(samples, sampleRate)
         val minVotes = minMatchVotesFor(SensitivityRepository.sensitivity.value)
-        return current.match(queryHashes, minVotes).mapNotNull { match ->
-            PokemonCryCatalog.byTagId(version, match.tagId)?.let { CryMatch(it, match.confidencePercent) }
+        return current.index.match(queryHashes, minVotes).mapNotNull { match ->
+            PokemonCryCatalog.byTagId(current.version, match.tagId)?.let { CryMatch(it, match.confidencePercent) }
         }
     }
 }

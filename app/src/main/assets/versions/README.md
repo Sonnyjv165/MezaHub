@@ -36,7 +36,7 @@ If a species' cry is identical across two of its cards (e.g. Meganium at 1-4-012
 1-4-030), copy the same .wav to both tag IDs rather than using two separately trimmed
 recordings. The app shows tied matches as multiple possible outcomes, but two recordings trimmed
 differently can score differently and drop one of the cards. A unit test checks this for every
-version except Version 3.
+version.
 
 ## Icons
 

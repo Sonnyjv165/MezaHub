@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.mezahub.audio.AudioCapture
 import com.example.mezahub.audio.MicErrorReason
 import com.example.mezahub.audio.MicUnavailableException
+import com.example.mezahub.audio.RecordingBuffer
 import com.example.mezahub.data.AppSettingsRepository
 import com.example.mezahub.data.CryFingerprintRepository
+import com.example.mezahub.data.CryMatch
 import com.example.mezahub.data.DetectionHistoryRepository
 import com.example.mezahub.data.MezastarVersion
 import com.example.mezahub.data.SensitivityRepository
@@ -16,13 +18,20 @@ import com.example.mezahub.model.ListenStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val CAPTURE_DURATION_MS = 4000
+// Listen for up to MAX_LISTEN_MS, checking the latest MATCH_WINDOW_MS every MATCH_INTERVAL_MS
+// (once at least MIN_MATCH_AUDIO_MS is in), and stop at the first recognized cry.
+private const val MAX_LISTEN_MS = 10_000
+private const val MATCH_WINDOW_MS = 4000
+private const val MATCH_INTERVAL_MS = 750L
+private const val MIN_MATCH_AUDIO_MS = 1500
 
 /** Drives real mic capture and fingerprint matching against [CryFingerprintRepository]. */
 class ListenViewModel(application: Application) : AndroidViewModel(application) {
@@ -83,16 +92,7 @@ class ListenViewModel(application: Application) : AndroidViewModel(application) 
         _status.value = ListenStatus.LISTENING
         captureJob = viewModelScope.launch {
             try {
-                val samples = withContext(Dispatchers.IO) {
-                    audioCapture.captureClip(CAPTURE_DURATION_MS)
-                }
-                _status.value = ListenStatus.PROCESSING
-                // Tapping Listen right after launch (or a version switch) could otherwise match
-                // against a still-empty or stale index and report a false "no match".
-                CryFingerprintRepository.ensureLoaded(getApplication(), activeVersion.value)
-                val matches = withContext(Dispatchers.Default) {
-                    CryFingerprintRepository.match(samples, AudioCapture.SAMPLE_RATE)
-                }
+                val matches = listenUntilMatch()
                 if (matches.isNotEmpty()) {
                     val outcomes = matches.map { match ->
                         CryOutcome(
@@ -122,6 +122,40 @@ class ListenViewModel(application: Application) : AndroidViewModel(application) 
                 showError()
             }
         }
+    }
+
+    /**
+     * Records for up to [MAX_LISTEN_MS], matching the most recent [MATCH_WINDOW_MS] as it goes, and
+     * stops as soon as a cry is recognized — so a cry that starts late is still caught, and an
+     * early one is identified without waiting out the clock. Mic failures propagate to the caller.
+     */
+    private suspend fun listenUntilMatch(): List<CryMatch> = coroutineScope {
+        val sampleRate = AudioCapture.SAMPLE_RATE
+        val recording = RecordingBuffer(sampleRate * MAX_LISTEN_MS / 1000)
+        val capture = launch(Dispatchers.IO) {
+            audioCapture.captureClip(MAX_LISTEN_MS) { chunk, count -> recording.append(chunk, count) }
+        }
+        // Loads (or switches) the cry database while the mic is already recording; matching
+        // before it's ready would report a false "no match".
+        CryFingerprintRepository.ensureLoaded(getApplication(), activeVersion.value)
+
+        val window = sampleRate * MATCH_WINDOW_MS / 1000
+        val minAudio = sampleRate * MIN_MATCH_AUDIO_MS / 1000
+        suspend fun matchLatest() = withContext(Dispatchers.Default) {
+            CryFingerprintRepository.match(recording.latest(window), sampleRate)
+        }
+        while (capture.isActive) {
+            delay(MATCH_INTERVAL_MS)
+            if (recording.size < minAudio) continue
+            val matches = matchLatest()
+            if (matches.isNotEmpty()) {
+                capture.cancel() // coroutineScope still waits for it, so the mic is released first.
+                return@coroutineScope matches
+            }
+        }
+        // Time's up: one last look covering the audio since the previous check.
+        _status.value = ListenStatus.PROCESSING
+        matchLatest()
     }
 
     private fun showError(reason: MicErrorReason? = null, permissionRevoked: Boolean = false) {

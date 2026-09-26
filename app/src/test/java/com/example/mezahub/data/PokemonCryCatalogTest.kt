@@ -107,11 +107,10 @@ class PokemonCryCatalogTest {
     /**
      * A species' cards must share one byte-identical clip: differently trimmed recordings of the
      * same cry score differently, so the match could drop one card instead of showing both.
-     * Version 3 predates this rule (its clips were trimmed separately), so it isn't checked yet.
      */
     @Test
     fun sameSpeciesCardsShareOneCryFile() {
-        for (version in MezastarVersion.entries - MezastarVersion.V3) {
+        for (version in MezastarVersion.entries) {
             PokemonCryCatalog.cards(version).groupBy { it.speciesName }.values.filter { it.size > 1 }.forEach { cards ->
                 val clips = cards.map { File("src/main/assets/${version.criesDir}/${it.tagId}.wav") }.filter { it.exists() }
                 if (clips.size > 1) {

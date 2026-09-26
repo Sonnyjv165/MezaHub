@@ -37,15 +37,18 @@ The Listen screen is driven by a 6-state flow:
 | State | What's shown |
 |---|---|
 | `IDLE` | Poké Ball mic button, "Tap the Poké Ball to listen" |
-| `LISTENING` | Ball pulses and bobs in real time with the mic's input volume |
-| `PROCESSING` | "Who's that Pokémon?" with a Poké Ball wobbling like it's mid-catch |
+| `LISTENING` | Ball pulses and bobs in real time with the mic's input volume; cries are being matched as they play |
+| `PROCESSING` | "Who's that Pokémon?" with a Poké Ball wobbling like it's mid-catch (the final check when listening times out) |
 | `RESULT` | "It's Zygarde!" card with its star tier, a bounce-in animation, and a haptic buzz (a double buzz for Superstars) |
 | `NO_MATCH` | Friendly empty state with a retry tip (and a pointer to Settings if the cry database is empty) |
 | `MIC_ERROR` | The mic couldn't be used (e.g. another app is recording) — explains why, with a retry |
 
-Tapping the mic again while `LISTENING` cancels the capture early, as does leaving the app. A
-capture runs for up to 4 seconds (`CAPTURE_DURATION_MS` in `ListenViewModel`) unless cancelled
-sooner.
+**Listening until a match.** A capture runs for up to 10 seconds, and while it records, the latest
+4 seconds are matched about every ¾ second. It stops as soon as a cry is recognized, so an early
+cry shows its result right away, and a cry that starts late (after the first few seconds) is
+still caught. If nothing is recognized by 10 seconds, one final check runs before "no Pokémon
+recognized". The cry database also loads while the mic is already recording. Tapping the mic
+again while `LISTENING` cancels, as does leaving the app.
 
 **Microphone permission.** Before the first system prompt, a short explanation says why the mic
 is needed (audio is analyzed on the phone and never saved or uploaded — the app has no internet
@@ -106,7 +109,7 @@ self-contained, Shazam-style **acoustic fingerprinting** pipeline written from s
    background thread and folded into an in-memory inverted index: hash → list of (card tag ID,
    frame position). Only the active version is indexed. Rebuilds are serialized, and a capture
    waits for the index to finish loading rather than matching against an empty one.
-7. **Matching** — the live clip is fingerprinted the same way, then every one of its hashes is
+7. **Matching** — the latest few seconds of live audio are fingerprinted the same way, then every one of its hashes is
    looked up in the index. Each (candidate tag ID, time offset) pair gets a vote; a real match
    produces a sharp spike of votes at one consistent offset (because the whole clip aligns),
    while noise produces scattered, low votes. The top vote count must clear a minimum threshold
@@ -144,7 +147,10 @@ extremes, these are the remaining hardcoded constants to adjust:
   both count as "tied."
 - `AMPLITUDE_GAIN` (`AudioCapture.kt`) — cosmetic only; affects how energetically the mic button
   bobs, not matching accuracy.
-- `CAPTURE_DURATION_MS` (`ListenViewModel.kt`) — how long a capture runs before auto-stopping.
+- `MAX_LISTEN_MS`, `MATCH_WINDOW_MS`, `MATCH_INTERVAL_MS`, `MIN_MATCH_AUDIO_MS`
+  (`ListenViewModel.kt`) — how long listening runs before giving up (10 s), how much recent audio
+  each check looks at (4 s), how often it checks (750 ms), and how much audio it waits for first
+  (1.5 s).
 
 Matching quality is fundamentally limited by the quality of the reference clips in
 `assets/versions/vN/cries/` — clean, representative recordings of each cry (ideally captured from the actual
@@ -283,9 +289,11 @@ They cover the FFT, WAV decoding (including malformed files), fingerprint matchi
 starting mid-clip, background noise, 44.1 kHz mic audio against 22.05 kHz references, tied
 duplicate cries, silence, thresholds), catalog integrity (73 Version 3 cards, unique tag IDs, tier
 counts, the same for Version 4's 70 cards, the `1-N-xxx` pattern per version, every bundled
-cry/icon mapping to a card, and Version 4's multi-star species sharing one clip), History search/filter/sort, Pokédex stats, translation completeness (every key present
-in every language, with matching placeholders), and the ball-theme set. Synthetic tone
-"melodies" stand in for real cries, so the tests don't depend on the bundled audio.
+cry/icon mapping to a card, and multi-star species sharing one clip), History search/filter/sort,
+Pokédex stats, translation completeness (every key present in every language, with matching
+placeholders), the ball-theme set and its text contrast, and listening until a match
+(`ListenUntilMatchTest` replays the listening loop with the real Version 4 cries mixed into
+background noise). The fingerprinting tests use synthetic tone "melodies" rather than real cries.
 
 `.github/workflows/android.yml` runs the unit tests, Android lint, and a debug build on every
 push and pull request to `main`, and uploads the reports and debug APK as build artifacts.
@@ -305,6 +313,21 @@ kept so release crash traces stay readable.
 - JUnit unit tests, Android lint, and GitHub Actions CI; R8-shrunk release builds
 
 ## Changelog
+
+### 4.5 — Listen until it's caught
+- **Keeps listening until there's a match:** listening now runs for up to 10 seconds, checking
+  the latest audio about every ¾ second, and stops the moment a cry is recognized. Cries that
+  start late are no longer missed, and early ones show up without waiting out the clock.
+- **Fixed Version 3 cards that share a cry.** Grimmsnarl, Sceptile, Blaziken, Swampert,
+  Coalossal, Pikachu, and Haxorus had separately trimmed recordings of the same cry, so a match
+  often showed only one card, sometimes the wrong tier (e.g. the 6★ Grimmsnarl never appeared).
+  Each species' cards now share one clip, and a test checks this for every version.
+- Fixed a rare mix-up when switching Mezastar version mid-match (the cry database and its
+  version are now swapped in together).
+- Card icons now use a size-limited memory cache instead of keeping every icon ever shown.
+- A mic that fails while stopping no longer hides the real error message.
+- 7 new unit tests (62 total), including a simulation of listening with background noise: late
+  cries are caught, every Version 4 card is found, and noise alone never matches.
 
 ### 4.4 — Every Poké Ball
 - **25 new ball themes**, covering every catching ball in the main series (38 total): Generation

@@ -43,14 +43,16 @@ class AudioCapture(private val context: Context) {
 
     /**
      * Records up to [maxDurationMs] of audio, returning early (with what's captured so far) if the
-     * calling coroutine is cancelled — e.g. the user tapped the mic to stop listening.
+     * calling coroutine is cancelled — e.g. the user tapped the mic to stop listening, or a cry was
+     * already recognized. [onAudio] receives each chunk as it arrives (the array is reused for the
+     * next chunk, so copy what you need before returning).
      *
      * @throws SecurityException if the RECORD_AUDIO permission isn't (or is no longer) granted.
      * @throws MicUnavailableException if the mic can't be opened or stops delivering audio —
      *   most often because another app (a call, voice assistant, screen recorder) holds it.
      */
     @SuppressLint("MissingPermission") // Checked explicitly on the first line.
-    suspend fun captureClip(maxDurationMs: Int): ShortArray {
+    suspend fun captureClip(maxDurationMs: Int, onAudio: (chunk: ShortArray, count: Int) -> Unit = { _, _ -> }): ShortArray {
         if (!hasPermission()) throw SecurityException("RECORD_AUDIO permission not granted")
 
         val minBufferSize = AudioRecord.getMinBufferSize(
@@ -99,10 +101,15 @@ class AudioCapture(private val context: Context) {
                 val toCopy = minOf(read, maxSamples - written)
                 System.arraycopy(chunk, 0, output, written, toCopy)
                 written += toCopy
+                onAudio(chunk, toCopy)
                 _amplitude.value = rmsLevel(chunk, read)
             }
         } finally {
-            if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop()
+            try {
+                if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop()
+            } catch (e: IllegalStateException) {
+                // Already stopped underneath us; throwing here would hide the error that got us here.
+            }
             recorder.release()
             _amplitude.value = 0f
         }
