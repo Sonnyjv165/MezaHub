@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.Dp
 import com.example.mezahub.ui.theme.BallPattern
 import com.example.mezahub.ui.theme.BallStyle
 import com.example.mezahub.ui.theme.LocalBallTheme
+import kotlin.math.cos
+import kotlin.math.sin
 
 private val BallWhite = Color(0xFFF5F5F5)
 private val BallInk = Color(0xFF1A1A1A)
@@ -44,9 +46,9 @@ private fun DrawScope.drawBall(style: BallStyle) {
     }
     clipPath(topHalf) { drawPattern(style, r, c) }
 
-    drawRect(color = BallInk, topLeft = Offset(c.x - r, c.y - outline / 2), size = Size(r * 2, outline))
+    drawRect(color = style.band, topLeft = Offset(c.x - r, c.y - outline / 2), size = Size(r * 2, outline))
     drawCircle(color = BallInk, radius = r - outline / 2, center = c, style = Stroke(width = outline))
-    drawCircle(color = BallInk, radius = r * 0.30f, center = c)
+    drawCircle(color = style.band, radius = r * 0.30f, center = c)
     drawCircle(color = BallWhite, radius = r * 0.20f, center = c)
     drawCircle(color = BallInk, radius = r * 0.20f, center = c, style = Stroke(width = outline * 0.5f))
     // Glossy highlight on the top half.
@@ -101,6 +103,57 @@ private fun DrawScope.drawPattern(style: BallStyle, r: Float, c: Offset) {
         BallPattern.TWO_BANDS -> {
             drawRect(color = style.accent, topLeft = Offset(c.x - r, c.y - r * 0.78f), size = Size(r * 2, r * 0.15f))
             drawRect(color = style.accent2, topLeft = Offset(c.x - r, c.y - r * 0.45f), size = Size(r * 2, r * 0.15f))
+        }
+        BallPattern.NET -> {
+            val line = r * 0.06f
+            for (i in -3..3) {
+                val x = c.x + r * 0.3f * i
+                drawLine(style.accent, Offset(x, c.y - r), Offset(x, c.y), strokeWidth = line)
+            }
+            for (j in 1..3) {
+                val y = c.y - r * 0.28f * j
+                drawLine(style.accent, Offset(c.x - r, y), Offset(c.x + r, y), strokeWidth = line)
+            }
+        }
+        BallPattern.WAVES -> listOf(0.72f, 0.40f).forEach { depth ->
+            val y = c.y - r * depth
+            val step = r * 0.5f
+            val wave = Path().apply {
+                moveTo(c.x - r, y)
+                var x = c.x - r
+                var crest = true
+                while (x < c.x + r) {
+                    val peak = if (crest) y - r * 0.12f else y + r * 0.12f
+                    cubicTo(x + step / 3, peak, x + step * 2 / 3, peak, x + step, y)
+                    x += step
+                    crest = !crest
+                }
+            }
+            drawPath(wave, color = style.accent, style = Stroke(width = r * 0.11f, cap = StrokeCap.Round))
+        }
+        BallPattern.RINGS -> listOf(0.55f, 0.80f).forEach { f ->
+            drawCircle(color = style.accent, radius = r * f, center = c, style = Stroke(width = r * 0.09f))
+        }
+        BallPattern.RAYS -> listOf(200.0, 235.0, 305.0, 340.0).forEach { degrees ->
+            val dir = Offset(cos(Math.toRadians(degrees)).toFloat(), sin(Math.toRadians(degrees)).toFloat())
+            drawLine(style.accent, c + dir * (r * 0.38f), c + dir * r, strokeWidth = r * 0.10f, cap = StrokeCap.Round)
+        }
+        BallPattern.WINGS -> listOf(-1f, 1f).forEach { side ->
+            val wing = Path().apply {
+                moveTo(c.x + side * r * 0.25f, c.y - r * 0.18f)
+                cubicTo(
+                    c.x + side * r * 0.55f, c.y - r * 0.95f,
+                    c.x + side * r * 0.95f, c.y - r * 0.75f,
+                    c.x + side * r, c.y - r * 0.55f,
+                )
+                cubicTo(
+                    c.x + side * r * 0.75f, c.y - r * 0.50f,
+                    c.x + side * r * 0.55f, c.y - r * 0.30f,
+                    c.x + side * r * 0.25f, c.y - r * 0.18f,
+                )
+                close()
+            }
+            drawPath(wing, color = style.accent)
         }
     }
 }

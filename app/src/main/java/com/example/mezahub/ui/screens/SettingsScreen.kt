@@ -50,6 +50,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -75,6 +76,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: SettingsViewModel =
     val activeVersion by viewModel.activeVersion.collectAsState()
     var showSensitivityHelp by remember { mutableStateOf(false) }
     var showLanguagePicker by remember { mutableStateOf(false) }
+    var showThemePicker by remember { mutableStateOf(false) }
     // Changing language recreates the activity, so reading it once per composition is enough.
     val currentLanguage = remember { viewModel.currentLanguage() }
 
@@ -173,13 +175,24 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: SettingsViewModel =
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
-            BallTheme.entries.groupBy { it.generation }.toSortedMap().forEach { (generation, themes) ->
-                Text(
-                    text = stringResource(R.string.settings_theme_generation, romanNumeral(generation)),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 6.dp),
-                )
-                BallThemeGrid(themes = themes, selected = ballTheme, onSelect = viewModel::onBallThemeChange)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showThemePicker = true }
+                    .padding(horizontal = 24.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Pokeball(size = 36.dp, style = ballTheme.ball)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = stringResource(ballTheme.nameRes), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = stringResource(R.string.settings_theme_generation, romanNumeral(ballTheme.generation)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             SectionDivider()
@@ -254,6 +267,13 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: SettingsViewModel =
     if (showSensitivityHelp) {
         SensitivityHelpDialog(onDismiss = { showSensitivityHelp = false })
     }
+    if (showThemePicker) {
+        BallThemeDialog(
+            selected = ballTheme,
+            onSelect = viewModel::onBallThemeChange,
+            onDismiss = { showThemePicker = false },
+        )
+    }
     if (showLanguagePicker) {
         LanguageDialog(
             current = currentLanguage,
@@ -266,9 +286,34 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: SettingsViewModel =
     }
 }
 
+/**
+ * Every ball theme, grouped by the generation that introduced it. Picking one applies it right
+ * away (the dialog recolors live), so the dialog stays open for comparing until Done.
+ */
+@Composable
+private fun BallThemeDialog(selected: BallTheme, onSelect: (BallTheme) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_theme)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                BallTheme.entries.groupBy { it.generation }.toSortedMap().forEach { (generation, themes) ->
+                    Text(
+                        text = stringResource(R.string.settings_theme_generation, romanNumeral(generation)),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                    )
+                    BallThemeGrid(themes = themes, selected = selected, onSelect = onSelect)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
+    )
+}
+
 @Composable
 private fun BallThemeGrid(themes: List<BallTheme>, selected: BallTheme, onSelect: (BallTheme) -> Unit) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+    Column {
         themes.chunked(4).forEach { row ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 row.forEach { theme ->
@@ -315,6 +360,7 @@ private fun BallThemeOption(theme: BallTheme, isSelected: Boolean, onClick: () -
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             textAlign = TextAlign.Center,
             maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

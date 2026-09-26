@@ -17,9 +17,15 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private fun contrastOn(color: Color): Color = if (color.luminance() > 0.45f) InkDark else Color.White
+/** White or ink, whichever contrasts more with [color] (a fixed luminance cutoff misjudges mid-tones). */
+private fun contrastOn(color: Color): Color {
+    val l = color.luminance()
+    val onWhite = 1.05f / (l + 0.05f)
+    val onInk = (l + 0.05f) / (InkDark.luminance() + 0.05f)
+    return if (onWhite >= onInk) Color.White else InkDark
+}
 
-private fun colorSchemeFor(theme: BallTheme, dark: Boolean): ColorScheme {
+internal fun colorSchemeFor(theme: BallTheme, dark: Boolean): ColorScheme {
     val secondary = theme.secondary
     return if (dark) {
         // Nudge primary lighter so it still reads on the near-black background.

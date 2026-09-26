@@ -24,7 +24,7 @@ The app has four screens, all sharing a Pokédex-style header in your chosen Pok
 - **Pokédex** — which of the active Mezastar version's cards you've heard so far, per-tier
   completion, and your most heard Pokémon.
 - **Settings** — Mezastar version picker (Versions 1–4), reference-database status/rebuild, a working sensitivity slider (with a
-  built-in calibration guide), a confidence-percentage display toggle, a Poké Ball theme picker,
+  built-in calibration guide), a confidence-percentage display toggle, a Poké Ball theme picker (38 balls),
   a language picker, and app/version info.
 
 The app is available in English, Japanese, Korean, Simplified and Traditional Chinese,
@@ -226,20 +226,31 @@ per species.
 
 ## Themes
 
-Settings has a **Theme** picker with 13 Poké Ball themes from Generations I and II:
+Settings → **Theme** opens a picker with all 38 catching balls from the main series, grouped by
+the generation that introduced them. Tapping a ball applies it straight away, so you can compare
+before closing the picker.
 
 | Generation | Balls |
 |---|---|
 | I | Poké Ball (default), Great Ball, Ultra Ball, Safari Ball, Master Ball |
 | II | Fast Ball, Level Ball, Lure Ball, Heavy Ball, Love Ball, Friend Ball, Moon Ball, Sport Ball |
+| III | Net Ball, Dive Ball, Nest Ball, Repeat Ball, Timer Ball, Luxury Ball, Premier Ball |
+| IV | Dusk Ball, Heal Ball, Quick Ball, Cherish Ball, Park Ball |
+| V | Dream Ball |
+| VII | Beast Ball |
+| VIII (Legends: Arceus) | Strange Ball, Feather Ball, Wing Ball, Jet Ball, Leaden Ball, Gigaton Ball, Origin Ball, and the Hisuian Poké, Great, Ultra, and Heavy Balls |
+
+Generations VI and IX added no new balls. Key items that can't catch Pokémon (the GS Ball) aren't
+included.
 
 A theme recolors the whole app (the header and status bar, buttons, highlights, and light/dark
 color schemes derived from the ball's colors) and redraws every Poké Ball in the app — the mic
 button, the "identifying" wobble, and the permission prompt — in that ball's design. Balls are
 drawn in code (`ui/components/Pokeball.kt`), so they're simplified takes on each design rather
 than official artwork. Each theme is one entry in `ui/theme/BallTheme.kt` (colors plus a pattern
-such as the Great Ball's side patches or the Master Ball's "M"), so adding later generations is
-mostly a matter of adding entries. The choice is saved and restored on launch. Tier colors on
+such as the Great Ball's side patches, the Net Ball's mesh, or the Premier Ball's red seam), so
+adding a new ball is mostly a matter of adding an entry. A unit test checks every theme's text
+colors stay readable (at least 3:1 contrast) in both light and dark mode. The choice is saved and restored on launch. Tier colors on
 results (2★ red … 6★ galaxy) stay the same in every theme, since they carry meaning.
 
 ## Languages
@@ -294,6 +305,18 @@ kept so release crash traces stay readable.
 - JUnit unit tests, Android lint, and GitHub Actions CI; R8-shrunk release builds
 
 ## Changelog
+
+### 4.4 — Every Poké Ball
+- **25 new ball themes**, covering every catching ball in the main series (38 total): Generation
+  III (Net, Dive, Nest, Repeat, Timer, Luxury, Premier), IV (Dusk, Heal, Quick, Cherish, Park),
+  V (Dream), VII (Beast), and VIII's Legends: Arceus balls (Strange, Feather, Wing, Jet, Leaden,
+  Gigaton, Origin, and the Hisuian Poké, Great, Ultra, and Heavy Balls). Names are translated in
+  every language.
+- The Theme setting is now a single row showing your ball; tapping it opens a picker grouped by
+  generation.
+- Readability fixes: Ultra Ball's text color was too faint on the light background, and dark-mode
+  button text on Safari, Friend, and Sport Ball could be hard to read.
+- A new unit test checks every theme's text contrast in light and dark mode (55 tests total).
 
 ### 4.3
 - Fixed a crash when opening Settings (introduced in 4.1 with the Mezastar Version picker).
